@@ -7,6 +7,7 @@ import { StudentDashboard } from './pages/student/StudentDashboard';
 import { StudentApplicationPortal } from './pages/student/StudentApplicationPortal';
 import { UniversityDashboard } from './pages/institution/UniversityDashboard';
 import { CentralAuthorityDashboard } from './pages/admin/CentralAuthorityDashboard';
+import VerificationPage from './pages/VerificationPage';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -42,6 +43,7 @@ function App() {
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth/signin" element={<SignIn />} />
+            <Route path="/verify" element={<VerificationPage />} />
             
             {/* Protected Routes */}
             <Route 
