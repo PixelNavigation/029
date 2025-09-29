@@ -28,7 +28,7 @@ import {
   Clock
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
-import { generateQrCode, downloadQrCode } from '../../utils/qr';
+import { generateQrCode, downloadQrCode, createSamplePortfolioPayload } from '../../utils/qr';
 
 export const StudentDashboard = () => {
   const { user, signOut } = useAuthStore();
@@ -52,13 +52,12 @@ export const StudentDashboard = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [scannedDocuments, setScannedDocuments] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
+  const [dummyQrCode, setDummyQrCode] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   
   const [submissionData, setSubmissionData] = useState({
-    documentType: '',
-    purpose: '',
-    additionalNotes: ''
+    documentType: ''
   });
 
   // Document verification status mapping for Shashank Vardhan Reddy
@@ -100,6 +99,42 @@ export const StudentDashboard = () => {
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [showQrModal, isFullscreen]);
+
+  // Generate dummy QR code for demonstration
+  useEffect(() => {
+    const generateDummyQR = async () => {
+      try {
+        const dummyData = {
+          type: 'DOCUMENT_VERIFICATION',
+          version: '1.0',
+          studentInfo: {
+            id: 'STU-2025-001',
+            name: 'Sample Student',
+            email: 'sample.student@university.edu',
+            university: 'Sample University',
+            course: 'Computer Science',
+            year: '3rd Year'
+          },
+          verification: {
+            total: 2,
+            verified: 2,
+            verifiedDocuments: [
+              { name: 'Academic Transcript.pdf', type: 'Academic Records', status: 'VERIFIED' },
+              { name: 'ID Proof.jpg', type: 'Identity Proof', status: 'VERIFIED' }
+            ]
+          },
+          issuedAt: new Date().toISOString()
+        };
+        
+        const qrDataUrl = await generateQrCode(dummyData, { size: 200 });
+        setDummyQrCode(qrDataUrl);
+      } catch (error) {
+        console.error('Failed to generate dummy QR code:', error);
+      }
+    };
+
+    generateDummyQR();
+  }, []);
 
   const onDrop = (acceptedFiles) => {
     const newFiles = acceptedFiles.map(file => ({
@@ -156,8 +191,6 @@ export const StudentDashboard = () => {
       return {
         ...file,
         documentType: submissionData.documentType,
-        purpose: submissionData.purpose,
-        additionalNotes: submissionData.additionalNotes,
         verificationStatus: verificationStatus,
         submittedAt: new Date().toISOString(),
         verificationId: Math.random().toString(36).substring(7)
@@ -177,9 +210,7 @@ export const StudentDashboard = () => {
     // Clear form after submission
     setUploadedFiles([]);
     setSubmissionData({
-      documentType: '',
-      purpose: '',
-      additionalNotes: ''
+      documentType: ''
     });
     
     console.log('Submission Data:', submissionData);
@@ -267,9 +298,7 @@ export const StudentDashboard = () => {
     
     setUploadedFiles(testFiles);
     setSubmissionData({
-      documentType: 'Academic Records',
-      purpose: 'University Application',
-      additionalNotes: 'Test verification with actual uploaded file names'
+      documentType: 'Academic Records'
     });
   };
 
@@ -300,12 +329,15 @@ export const StudentDashboard = () => {
             verificationId: doc.verificationId,
             submittedAt: doc.submittedAt,
             status: 'VERIFIED',
-            hash: `sha256_${doc.verificationId}`
+            hash: `sha256_${doc.verificationId}`,
+            size: doc.size,
+            fileExtension: doc.name.split('.').pop().toLowerCase(),
+            previewAvailable: ['pdf', 'jpg', 'jpeg', 'png'].includes(doc.name.split('.').pop().toLowerCase())
           }))
         },
         issuedAt: new Date().toISOString(),
         signature: `ACVS_${Date.now()}_${currentUser?.studentId}`,
-        note: 'Scan this QR to view verified documents online'
+        note: 'Scan this QR to view verified documents online with preview functionality'
       };
 
       // Create URL with verification data
@@ -559,17 +591,7 @@ export const StudentDashboard = () => {
     'Other Documents'
   ];
 
-  const submissionPurposes = [
-    'University Application',
-    'Job Application',
-    'Scholarship Application',
-    'Visa Processing',
-    'Higher Education',
-    'Document Verification',
-    'Legal Requirements',
-    'Government Services',
-    'Other Purpose'
-  ];
+  // Submission purposes removed as requested
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -634,19 +656,6 @@ export const StudentDashboard = () => {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Purpose</label>
-                  <select
-                    value={submissionData.purpose}
-                    onChange={(e) => handleInputChange('purpose', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  >
-                    <option value="">Select Purpose</option>
-                    {submissionPurposes.map((purpose) => (
-                      <option key={purpose} value={purpose}>{purpose}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               {/* Drop Zone */}
@@ -690,18 +699,6 @@ export const StudentDashboard = () => {
               <p className="text-xs text-gray-500 mb-6 text-center">
                 Supported formats: PDF, DOC, DOCX, JPG, PNG • Maximum file size: 10MB each
               </p>
-
-              {/* Additional Notes */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Additional Notes</label>
-                <textarea
-                  value={submissionData.additionalNotes}
-                  onChange={(e) => handleInputChange('additionalNotes', e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  placeholder="Any additional information about your documents..."
-                />
-              </div>
 
               {/* Uploaded Files List */}
               {uploadedFiles.length > 0 && (
@@ -870,7 +867,6 @@ export const StudentDashboard = () => {
 
                           <div className="text-sm text-gray-600 space-y-1">
                             <p><span className="font-medium">Document Type:</span> {doc.documentType}</p>
-                            <p><span className="font-medium">Purpose:</span> {doc.purpose}</p>
                             <p><span className="font-medium">File Size:</span> {formatFileSize(doc.size)}</p>
                             <p><span className="font-medium">Submitted:</span> {new Date(doc.submittedAt).toLocaleString()}</p>
                             <p><span className="font-medium">Verification ID:</span> {doc.verificationId}</p>
@@ -933,34 +929,7 @@ export const StudentDashboard = () => {
                   </div>
                 </div>
 
-                {/* QR Code Generation */}
-                {submittedDocuments.filter(d => d.verificationStatus === 'verified').length > 0 && (
-                  <div className="mt-6 pt-4 border-t">
-                    <h4 className="font-medium text-gray-900 mb-3">Generate Verification QR Code</h4>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Create a QR code that contains all your verified documents with green verification marks.
-                    </p>
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={generateStudentQrCode}
-                        disabled={generatingQr}
-                        className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400"
-                      >
-                        <QrCode className="h-4 w-4" />
-                        <span>{generatingQr ? 'Generating...' : 'Generate QR Code'}</span>
-                      </button>
-                      {qrCodeDataUrl && (
-                        <button
-                          onClick={downloadStudentQrCode}
-                          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          <Eye className="h-4 w-4" />
-                          <span>Download QR</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
+
               </div>
             )}
           </div>
@@ -1051,8 +1020,22 @@ export const StudentDashboard = () => {
                 {!isScanning && !scannedDocuments ? (
                   <div className="text-center">
                     <div className="mb-3 p-3 bg-gray-50 rounded-lg">
-                      <QrCode className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-xs text-gray-600">Scan student QR codes to validate documents</p>
+                      {dummyQrCode ? (
+                        <div className="mb-2">
+                          <img 
+                            src={dummyQrCode} 
+                            alt="Sample QR Code"
+                            className="w-20 h-20 mx-auto mb-2 border border-gray-200 rounded"
+                          />
+                          <p className="text-xs text-gray-600 mb-1 font-medium">Sample QR Code</p>
+                          <p className="text-xs text-gray-500">Scan student QR codes to validate documents</p>
+                        </div>
+                      ) : (
+                        <div className="mb-2">
+                          <QrCode className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-xs text-gray-600">Scan student QR codes to validate documents</p>
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={startQRScanning}
@@ -1259,19 +1242,7 @@ export const StudentDashboard = () => {
                 </div>
               </div>
 
-              {/* QR Code Generation Button */}
-              {submittedDocuments.filter(d => d.verificationStatus === 'verified').length > 0 && (
-                <div className="mt-4 pt-3 border-t">
-                  <button
-                    onClick={generateStudentQrCode}
-                    disabled={generatingQr}
-                    className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400"
-                  >
-                    <QrCode className="h-4 w-4" />
-                    <span>{generatingQr ? 'Generating...' : 'Generate QR Code'}</span>
-                  </button>
-                </div>
-              )}
+
             </div>
           </div>
         </div>
@@ -1339,10 +1310,10 @@ export const StudentDashboard = () => {
                   </p>
                 </div>
                 <p className={`${isFullscreen ? 'text-sm' : 'text-xs'} text-blue-600 mb-2`}>
-                  <strong>Scan to view:</strong> Complete verification page with student details, verified documents, and verification status
+                  <strong>Scan to view:</strong> Complete verification page with student details, verified documents with visual previews, and verification status
                 </p>
                 <p className={`${isFullscreen ? 'text-sm' : 'text-xs'} text-blue-600`}>
-                  <strong>How to use:</strong> Scan this QR code with any QR scanner app, and it will open the verification page in your browser showing all verified documents.
+                  <strong>How to use:</strong> Scan this QR code with any QR scanner app to open the verification page showing all verified documents with document previews and detailed information.
                 </p>
               </div>
             </div>
@@ -1413,7 +1384,10 @@ export const StudentDashboard = () => {
                         verificationId: doc.verificationId,
                         submittedAt: doc.submittedAt,
                         status: 'VERIFIED',
-                        hash: `sha256_${doc.verificationId}`
+                        hash: `sha256_${doc.verificationId}`,
+                        size: doc.size,
+                        fileExtension: doc.name.split('.').pop().toLowerCase(),
+                        previewAvailable: ['pdf', 'jpg', 'jpeg', 'png'].includes(doc.name.split('.').pop().toLowerCase())
                       }))
                     },
                     issuedAt: new Date().toISOString(),
@@ -1459,7 +1433,10 @@ export const StudentDashboard = () => {
                         verificationId: doc.verificationId,
                         submittedAt: doc.submittedAt,
                         status: 'VERIFIED',
-                        hash: `sha256_${doc.verificationId}`
+                        hash: `sha256_${doc.verificationId}`,
+                        size: doc.size,
+                        fileExtension: doc.name.split('.').pop().toLowerCase(),
+                        previewAvailable: ['pdf', 'jpg', 'jpeg', 'png'].includes(doc.name.split('.').pop().toLowerCase())
                       }))
                     },
                     issuedAt: new Date().toISOString(),
