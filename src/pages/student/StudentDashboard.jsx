@@ -38,7 +38,7 @@ export const StudentDashboard = () => {
   // Force Shashank Vardhan Reddy's profile data
   const currentUser = {
     name: 'Shashank Vardhan Reddy',
-    studentId: '1608-22-733-130',
+    studentId: '9374-5621-8945',
     email: 'shashankvardhhanreddy@gmail.com',
     course: 'B.Tech Computer Science',
     year: '4th Year',
