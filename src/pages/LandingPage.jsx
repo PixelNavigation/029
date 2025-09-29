@@ -26,11 +26,11 @@ export const LandingPage = () => {
     // Generate mock verification data
     const mockData = {
       studentInfo: {
-        name: 'John Doe Smith',
-        email: 'john.smith@university.edu',
+        name: 'Gautam Babel Jain',
+        email: 'demo.mail@demouniversity.edu',
         university: 'MIT University',
         course: 'Bachelor of Technology',
-        year: '2020-2024',
+        year: '2022-2026',
         id: 'STU2024001'
       },
       verification: {
