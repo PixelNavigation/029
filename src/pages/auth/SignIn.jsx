@@ -4,18 +4,16 @@ import { ArrowLeft, Shield, CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 
 export const SignIn = () => {
-  const [step, setStep] = useState('email'); // 'email' or 'otp'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [digitalSignature, setDigitalSignature] = useState('');
-  const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const { signIn, user } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Get the role from navigation state
   const selectedRole = location.state?.role;
   const successMessage = location.state?.message;
@@ -50,7 +48,6 @@ export const SignIn = () => {
     try {
       // For Central Authority, use direct email/password login
       if (selectedRole === 'admin') {
-        // Simulate successful login for Central Authority
         if (email && password) {
           const mockUser = {
             id: 'admin-1',
@@ -60,17 +57,15 @@ export const SignIn = () => {
             verified: true,
             createdAt: new Date().toISOString()
           };
-          
-          // Use the setUser method to directly log in
+
           const { setUser } = useAuthStore.getState();
           setUser(mockUser);
-          
-          // Navigation will be handled by useEffect
         } else {
           throw new Error('Please enter both email and password');
         }
+
+      // For Student, use direct email/password login
       } else if (selectedRole === 'student') {
-        // For Student, use direct email/password login similar to Central Authority
         if (email && password) {
           const mockUser = {
             id: 'student-1',
@@ -90,17 +85,15 @@ export const SignIn = () => {
               portfolio: 'https://johndoe.dev'
             }
           };
-          
-          // Use the setUser method to directly log in
+
           const { setUser } = useAuthStore.getState();
           setUser(mockUser);
-          
-          // Navigation will be handled by useEffect
         } else {
           throw new Error('Please enter both email and password');
         }
+
+      // For University, use email and digital signature
       } else if (selectedRole === 'institution') {
-        // For University, use email and digital signature
         if (email && digitalSignature) {
           const mockUser = {
             id: 'univ-1',
@@ -111,24 +104,19 @@ export const SignIn = () => {
             verified: true,
             createdAt: new Date().toISOString()
           };
-          
-          // Use the setUser method to directly log in
+
           const { setUser } = useAuthStore.getState();
           setUser(mockUser);
-          
-          // Navigation will be handled by useEffect
         } else {
           throw new Error('Please enter both email and digital signature');
         }
+
+      // No role provided: basic email/password infer role by domain
       } else if (!selectedRole) {
-        // Default case when no role is selected - use email/password authentication
         if (email && password) {
-          // Try to determine role based on email domain or use a generic login
-          let userRole = 'student'; // Default to student
           let mockUser;
-          
+
           if (email.includes('@admin') || email.includes('@central')) {
-            userRole = 'admin';
             mockUser = {
               id: 'admin-1',
               email: email,
@@ -138,7 +126,6 @@ export const SignIn = () => {
               createdAt: new Date().toISOString()
             };
           } else if (email.includes('@university') || email.includes('@edu')) {
-            userRole = 'institution';
             mockUser = {
               id: 'univ-1',
               email: email,
@@ -149,7 +136,6 @@ export const SignIn = () => {
               createdAt: new Date().toISOString()
             };
           } else {
-            // Default to student
             mockUser = {
               id: 'student-1',
               email: email,
@@ -169,20 +155,19 @@ export const SignIn = () => {
               }
             };
           }
-          
-          // Use the setUser method to directly log in
+
           const { setUser } = useAuthStore.getState();
           setUser(mockUser);
-          
-          // Navigation will be handled by useEffect
         } else {
           throw new Error('Please enter both email and password');
         }
+
       } else {
-        // For other roles, use OTP flow
+        // Fallback: attempt signIn (if any extra flow provided by store)
         const result = await signIn(email);
-        if (result.otpSent) {
-          setStep('otp');
+        if (result?.otpSent) {
+          // OTP not implemented in UI; inform user
+          throw new Error('OTP flow is not available in this demo. Use email/password or select your role.');
         }
       }
     } catch (err) {
@@ -190,27 +175,6 @@ export const SignIn = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleOtpSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
-
-    try {
-      await signIn(email, otp);
-      // Navigation is handled by useEffect above
-    } catch (err) {
-      setError(err.message || 'Invalid OTP');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const goBack = () => {
-    setStep('email');
-    setOtp('');
-    setError('');
   };
 
   const getRoleTitle = (role) => {
@@ -280,141 +244,89 @@ export const SignIn = () => {
               </div>
             </div>
           )}
-          
-          {step === 'email' ? (
-            <form className="space-y-6" onSubmit={handleEmailSubmit}>
+
+          <form className="space-y-6" onSubmit={handleEmailSubmit}>
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                Email address
+              </label>
+              <div className="mt-1">
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Enter your email address"
+                />
+              </div>
+            </div>
+
+            {/* Show password field for Central Authority, Student, or when no role is selected (default to password) */}
+            {(selectedRole === 'admin' || selectedRole === 'student' || !selectedRole) && (
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email address
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
                 </label>
                 <div className="mt-1">
                   <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    placeholder="Enter your email address"
+                    placeholder="Enter your password"
                   />
                 </div>
               </div>
+            )}
 
-              {/* Show password field for Central Authority, Student, or when no role is selected (default to password) */}
-              {(selectedRole === 'admin' || selectedRole === 'student' || !selectedRole) && (
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                    Password
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      id="password"
-                      name="password"
-                      type="password"
-                      autoComplete="current-password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                      placeholder="Enter your password"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Show digital signature field only for University */}
-              {selectedRole === 'institution' && (
-                <div>
-                  <label htmlFor="digitalSignature" className="block text-sm font-medium text-gray-700">
-                    Digital Signature
-                  </label>
-                  <div className="mt-1">
-                    <textarea
-                      id="digitalSignature"
-                      name="digitalSignature"
-                      rows={4}
-                      required
-                      value={digitalSignature}
-                      onChange={(e) => setDigitalSignature(e.target.value)}
-                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                      placeholder="Enter your digital signature certificate or paste signature data"
-                    />
-                  </div>
-                  <p className="mt-2 text-xs text-gray-500">
-                    Enter your institutional digital signature for secure authentication
-                  </p>
-                </div>
-              )}
-
-              {error && (
-                <div className="text-red-600 text-sm">{error}</div>
-              )}
-
+            {/* Show digital signature field only for University */}
+            {selectedRole === 'institution' && (
               <div>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                >
-                  {isLoading ? 
-                    (selectedRole === 'admin' || selectedRole === 'institution' || selectedRole === 'student' || !selectedRole ? 'Signing In...' : 'Sending OTP...') : 
-                    (selectedRole === 'admin' || selectedRole === 'institution' || selectedRole === 'student' || !selectedRole ? 'Sign In' : 'Send OTP')
-                  }
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form className="space-y-6" onSubmit={handleOtpSubmit}>
-              <div>
-                <label htmlFor="otp" className="block text-sm font-medium text-gray-700">
-                  Enter OTP
+                <label htmlFor="digitalSignature" className="block text-sm font-medium text-gray-700">
+                  Digital Signature
                 </label>
                 <div className="mt-1">
-                  <input
-                    id="otp"
-                    name="otp"
-                    type="text"
-                    autoComplete="one-time-code"
+                  <textarea
+                    id="digitalSignature"
+                    name="digitalSignature"
+                    rows={4}
                     required
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                    placeholder="Enter 6-digit OTP"
-                    maxLength="6"
+                    value={digitalSignature}
+                    onChange={(e) => setDigitalSignature(e.target.value)}
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="Enter your digital signature certificate or paste signature data"
                   />
                 </div>
-                <p className="mt-2 text-sm text-gray-500">
-                  OTP sent to {email}
+                <p className="mt-2 text-xs text-gray-500">
+                  Enter your institutional digital signature for secure authentication
                 </p>
               </div>
+            )}
 
-              {error && (
-                <div className="text-red-600 text-sm">{error}</div>
-              )}
+            {error && (
+              <div className="text-red-600 text-sm">{error}</div>
+            )}
 
-              <div className="space-y-3">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-                >
-                  {isLoading ? 'Verifying...' : 'Sign In'}
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={goBack}
-                  className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                >
-                  Back
-                </button>
-              </div>
-            </form>
-          )}
+            <div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {isLoading ? 'Signing In...' : 'Sign In'}
+              </button>
+            </div>
+          </form>
         </div>
-        
+
         {/* University Registration Option */}
         {selectedRole === 'institution' && (
           <div className="mt-6 text-center">
