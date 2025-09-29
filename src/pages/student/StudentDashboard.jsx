@@ -644,93 +644,6 @@ export const StudentDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Left Column - Document Submission (3/4 width) */}
           <div className="lg:col-span-3 space-y-6">
-            {/* Uploaded Documents Section - Always visible */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <div className="flex items-center space-x-2 mb-6">
-                <FileText className="h-5 w-5 text-green-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Uploaded Documents</h3>
-                <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                  2
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* SSC Memo Document */}
-                <div className="p-4 border border-green-200 bg-green-50 rounded-lg hover:shadow-md transition-all">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 mt-1">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900" title="SSC Memo_shash.pdf">
-                        SSC Memo_shash.pdf
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Academic Records
-                      </p>
-                      
-                      <div className="inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        ✓ Verified
-                      </div>
-                      
-                      <div className="mt-2 text-xs text-gray-500 space-y-1">
-                        <p>Size: 0.13 MB</p>
-                        <p>Uploaded: {new Date().toLocaleDateString()}</p>
-                        <p>ID: VER001SSC</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Inter Short Memo Document */}
-                <div className="p-4 border border-green-200 bg-green-50 rounded-lg hover:shadow-md transition-all">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 mt-1">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900" title="Inter Short Memo_shash.pdf">
-                        Inter Short Memo_shash.pdf
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Academic Records
-                      </p>
-                      
-                      <div className="inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        ✓ Verified
-                      </div>
-                      
-                      <div className="mt-2 text-xs text-gray-500 space-y-1">
-                        <p>Size: 0.10 MB</p>
-                        <p>Uploaded: {new Date().toLocaleDateString()}</p>
-                        <p>ID: VER002INT</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Summary Statistics */}
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div className="bg-green-50 p-3 rounded-lg">
-                    <div className="text-lg font-semibold text-green-600">2</div>
-                    <div className="text-sm text-green-600">Verified</div>
-                  </div>
-                  <div className="bg-yellow-50 p-3 rounded-lg">
-                    <div className="text-lg font-semibold text-yellow-600">0</div>
-                    <div className="text-sm text-yellow-600">Semi-verified</div>
-                  </div>
-                  <div className="bg-red-50 p-3 rounded-lg">
-                    <div className="text-lg font-semibold text-red-600">0</div>
-                    <div className="text-sm text-red-600">Unable to Verify</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Already Uploaded Documents Section */}
             {submittedDocuments.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border p-6">
@@ -824,6 +737,93 @@ export const StudentDashboard = () => {
                 </div>
               </div>
             )}
+
+            {/* Uploaded Documents Section - Always visible */}
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <div className="flex items-center space-x-2 mb-6">
+                <FileText className="h-5 w-5 text-green-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Uploaded Documents</h3>
+                <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                  2
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* SSC Memo Document */}
+                <div className="p-4 border border-green-200 bg-green-50 rounded-lg hover:shadow-md transition-all">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 mt-1">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900" title="SSC Memo_shash.pdf">
+                        SSC Memo_shash.pdf
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Academic Records
+                      </p>
+                      
+                      <div className="inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        ✓ Verified
+                      </div>
+                      
+                      <div className="mt-2 text-xs text-gray-500 space-y-1">
+                        <p>Size: 0.13 MB</p>
+                        <p>Uploaded: {new Date().toLocaleDateString()}</p>
+                        <p>ID: VER001SSC</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Inter Short Memo Document */}
+                <div className="p-4 border border-green-200 bg-green-50 rounded-lg hover:shadow-md transition-all">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 mt-1">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900" title="Inter Short Memo_shash.pdf">
+                        Inter Short Memo_shash.pdf
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Academic Records
+                      </p>
+                      
+                      <div className="inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        ✓ Verified
+                      </div>
+                      
+                      <div className="mt-2 text-xs text-gray-500 space-y-1">
+                        <p>Size: 0.10 MB</p>
+                        <p>Uploaded: {new Date().toLocaleDateString()}</p>
+                        <p>ID: VER002INT</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary Statistics */}
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="bg-green-50 p-3 rounded-lg">
+                    <div className="text-lg font-semibold text-green-600">2</div>
+                    <div className="text-sm text-green-600">Verified</div>
+                  </div>
+                  <div className="bg-yellow-50 p-3 rounded-lg">
+                    <div className="text-lg font-semibold text-yellow-600">0</div>
+                    <div className="text-sm text-yellow-600">Semi-verified</div>
+                  </div>
+                  <div className="bg-red-50 p-3 rounded-lg">
+                    <div className="text-lg font-semibold text-red-600">0</div>
+                    <div className="text-sm text-red-600">Unable to Verify</div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Document Upload Area */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
@@ -980,18 +980,9 @@ export const StudentDashboard = () => {
                     <span>Submit Documents for Verification ({uploadedFiles.length})</span>
                   </button>
                   
-                  {/* Test Button - Remove in production */}
-                  <button 
-                    onClick={testVerificationWithScreenshotFiles}
-                    className="w-full flex items-center justify-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    <FileText className="h-5 w-5" />
-                    <span>🧪 Test with Sample Documents</span>
-                  </button>
-                  
                   {uploadedFiles.length === 0 && (
                     <p className="text-xs text-gray-500 text-center mt-2">
-                      Upload documents or use test button to see verification in action
+                      Please upload documents to submit for verification
                     </p>
                   )}
                 </div>
@@ -1139,7 +1130,7 @@ export const StudentDashboard = () => {
                   />
                 </div>
                 <h3 className="text-lg font-bold text-white text-center">{currentUser?.name}</h3>
-                <p className="text-green-100 text-sm text-center">Student ID: {currentUser?.studentId}</p>
+                <p className="text-green-100 text-sm text-center">Apar ID: {currentUser?.studentId}</p>
               </div>
 
               {/* Profile Details */}
