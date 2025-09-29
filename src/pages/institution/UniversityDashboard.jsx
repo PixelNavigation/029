@@ -35,20 +35,69 @@ export const UniversityDashboard = () => {
   const [showPreview, setShowPreview] = useState(false);
 
   const onDrop = async (acceptedFiles) => {
-    const newFiles = acceptedFiles.map(file => ({
-      file,
-      id: Math.random().toString(36).substring(7),
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      status: 'uploaded' // 'uploaded', 'processing', 'processed', 'error'
-    }));
-    
-    setUploadedFiles(prev => [...prev, ...newFiles]);
-    
+    // Helper: try to extract page count from PDF ArrayBuffer using a regex on the file text.
+    const getPdfPageCount = async (file) => {
+      try {
+        const ab = await file.arrayBuffer();
+        // Decode using latin1 to preserve byte values
+        const text = new TextDecoder('latin1').decode(ab);
+        // Look for /Count <num> occurrences and pick the largest (PDFs often contain multiple counts)
+        const re = /\/Count\s+(\d+)/g;
+        let match;
+        let max = 0;
+        while ((match = re.exec(text)) !== null) {
+          const val = parseInt(match[1], 10);
+          if (!Number.isNaN(val) && val > max) max = val;
+        }
+        // Fallback: try to find /N <num> or /Pages <num> patterns if present
+        if (max === 0) {
+          const re2 = /\/N\s+(\d+)/g;
+          while ((match = re2.exec(text)) !== null) {
+            const val = parseInt(match[1], 10);
+            if (!Number.isNaN(val) && val > max) max = val;
+          }
+        }
+        // If still zero, default to 1
+        return Math.min(Math.max(max || 1, 1), 10);
+      } catch (err) {
+        return 1;
+      }
+    };
+
+    // Build expanded file entries: PDFs expand into page-wise entries (max 10), others are single entries
+    const expandedEntries = [];
+    for (const file of acceptedFiles) {
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        const pages = await getPdfPageCount(file);
+        const pageCount = Math.min(pages, 10);
+        for (let p = 0; p < pageCount; p++) {
+          expandedEntries.push({
+            file,
+            id: Math.random().toString(36).substring(7),
+            name: `${file.name} (page ${p + 1})`,
+            size: file.size,
+            type: file.type,
+            page: p + 1,
+            status: 'uploaded'
+          });
+        }
+      } else {
+        expandedEntries.push({
+          file,
+          id: Math.random().toString(36).substring(7),
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          status: 'uploaded'
+        });
+      }
+    }
+
+    setUploadedFiles(prev => [...prev, ...expandedEntries]);
+
     // Auto-process files if in bulk mode
-    if (uploadMode === 'bulk' && acceptedFiles.length > 0) {
-      await processCertificates(newFiles);
+    if (uploadMode === 'bulk' && expandedEntries.length > 0) {
+      await processCertificates(expandedEntries);
     }
   };
 
