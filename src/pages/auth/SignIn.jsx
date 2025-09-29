@@ -1,21 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { ArrowLeft, Shield, CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
+import SignInAdmin from './SignInAdmin';
+import SignInStudent from './SignInStudent';
+import SignInInstitution from './SignInInstitution';
 
 export const SignIn = () => {
-  const [step, setStep] = useState('email'); // 'email' or 'otp'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [digitalSignature, setDigitalSignature] = useState('');
-  const [otp, setOtp] = useState('');
+  const [demoPublicKey, setDemoPublicKey] = useState('');
+  const [demoPrivateKey, setDemoPrivateKey] = useState('');
+  const [signing, setSigning] = useState(false);
+  const [keyFileName, setKeyFileName] = useState('');
+  const fileInputRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const { signIn, user } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Get the role from navigation state
   const selectedRole = location.state?.role;
   const successMessage = location.state?.message;
@@ -42,6 +47,177 @@ export const SignIn = () => {
     }
   }, [user, navigate]);
 
+  // Load demo keys from localStorage if present
+  useEffect(() => {
+    try {
+      const pub = localStorage.getItem('acvs_demo_univ_pub');
+      const priv = localStorage.getItem('acvs_demo_univ_priv');
+      if (pub) setDemoPublicKey(pub);
+      if (priv) setDemoPrivateKey(priv);
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  // Web Crypto helpers
+  const arrayBufferToBase64 = (buffer) => {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+  };
+
+  
+
+  // load key from a file (JWK JSON or PEM PKCS#8) and auto sign/verify+login
+  const handleKeyFile = (file) => {
+    setError('');
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const text = e.target.result;
+      try {
+        // try JSON JWK first
+        let parsed;
+        try {
+          parsed = JSON.parse(text);
+        } catch (jsonErr) {
+          parsed = null;
+        }
+
+        if (parsed && parsed.kty) {
+          // assume full JWK (private) provided
+          const privStr = JSON.stringify(parsed);
+          const pub = { kty: parsed.kty, n: parsed.n, e: parsed.e, alg: parsed.alg };
+          const pubStr = JSON.stringify(pub);
+          localStorage.setItem('acvs_demo_univ_priv', privStr);
+          localStorage.setItem('acvs_demo_univ_pub', pubStr);
+          setDemoPrivateKey(privStr);
+          setDemoPublicKey(pubStr);
+          setKeyFileName(file.name);
+
+          // attempt sign/verify and login immediately
+          if (!email) {
+            setError('Please enter email before loading the key file');
+            return;
+          }
+          const result = await signAndVerifyDemo(email);
+          if (!result.verified) throw new Error('Digital signature verification failed (from file)');
+          const mockUser = {
+            id: 'univ-1',
+            email: email,
+            role: 'institution',
+            name: 'University Administrator',
+            institutionName: email.split('@')[1]?.split('.')[0] || 'University',
+            verified: true,
+            createdAt: new Date().toISOString(),
+            signatureDemo: { signature: result.signature, message: result.message, publicJwk: result.publicJwk }
+          };
+          const { setUser } = useAuthStore.getState();
+          setUser(mockUser);
+          return;
+        }
+
+        // else treat as PEM (PKCS#8)
+        const pem = text.trim();
+        const b64 = pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
+        const binary = atob(b64);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+        const der = bytes.buffer;
+
+        // import private key in pkcs8 format
+        const imported = await window.crypto.subtle.importKey(
+          'pkcs8',
+          der,
+          { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+          true,
+          ['sign']
+        );
+
+        // export as JWK (private contains public params too)
+        const privJwk = await window.crypto.subtle.exportKey('jwk', imported);
+        const pubJwk = { kty: privJwk.kty, n: privJwk.n, e: privJwk.e, alg: privJwk.alg };
+        const privStr = JSON.stringify(privJwk);
+        const pubStr = JSON.stringify(pubJwk);
+        localStorage.setItem('acvs_demo_univ_priv', privStr);
+        localStorage.setItem('acvs_demo_univ_pub', pubStr);
+        setDemoPrivateKey(privStr);
+        setDemoPublicKey(pubStr);
+        setKeyFileName(file.name);
+
+        // attempt sign/verify and login immediately
+        if (!email) {
+          setError('Please enter email before loading the key file');
+          return;
+        }
+        const result2 = await signAndVerifyDemo(email);
+        if (!result2.verified) throw new Error('Digital signature verification failed (from file)');
+        const mockUser2 = {
+          id: 'univ-1',
+          email: email,
+          role: 'institution',
+          name: 'University Administrator',
+          institutionName: email.split('@')[1]?.split('.')[0] || 'University',
+          verified: true,
+          createdAt: new Date().toISOString(),
+          signatureDemo: { signature: result2.signature, message: result2.message, publicJwk: result2.publicJwk }
+        };
+        const { setUser } = useAuthStore.getState();
+        setUser(mockUser2);
+      } catch (err) {
+        setError('Failed to load key file: ' + (err.message || err));
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const signAndVerifyDemo = async (emailForSigning) => {
+    setSigning(true);
+    setError('');
+    try {
+      const privStr = demoPrivateKey || localStorage.getItem('acvs_demo_univ_priv');
+      const pubStr = demoPublicKey || localStorage.getItem('acvs_demo_univ_pub');
+      if (!privStr || !pubStr) throw new Error('No demo key pair available. Generate one first.');
+
+      const privJwk = JSON.parse(privStr);
+      const pubJwk = JSON.parse(pubStr);
+
+      const message = `${emailForSigning}|${Date.now()}`;
+      const encoded = new TextEncoder().encode(message);
+
+      const importedPriv = await window.crypto.subtle.importKey(
+        'jwk',
+        privJwk,
+        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+
+      const signature = await window.crypto.subtle.sign('RSASSA-PKCS1-v1_5', importedPriv, encoded);
+      const signatureB64 = arrayBufferToBase64(signature);
+
+      const importedPub = await window.crypto.subtle.importKey(
+        'jwk',
+        pubJwk,
+        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+        false,
+        ['verify']
+      );
+
+      const verified = await window.crypto.subtle.verify('RSASSA-PKCS1-v1_5', importedPub, signature, encoded);
+      setSigning(false);
+      return { verified, signature: signatureB64, message, publicJwk: pubJwk };
+    } catch (err) {
+      setSigning(false);
+      setError('Signing failed: ' + (err.message || err));
+      return { verified: false };
+    }
+  };
+
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -50,7 +226,6 @@ export const SignIn = () => {
     try {
       // For Central Authority, use direct email/password login
       if (selectedRole === 'admin') {
-        // Simulate successful login for Central Authority
         if (email && password) {
           const mockUser = {
             id: 'admin-1',
@@ -60,17 +235,15 @@ export const SignIn = () => {
             verified: true,
             createdAt: new Date().toISOString()
           };
-          
-          // Use the setUser method to directly log in
+
           const { setUser } = useAuthStore.getState();
           setUser(mockUser);
-          
-          // Navigation will be handled by useEffect
         } else {
           throw new Error('Please enter both email and password');
         }
+
+      // For Student, use direct email/password login
       } else if (selectedRole === 'student') {
-        // For Student, use direct email/password login similar to Central Authority
         if (email && password) {
           const mockUser = {
             id: 'student-1',
@@ -90,18 +263,20 @@ export const SignIn = () => {
               portfolio: 'https://johndoe.dev'
             }
           };
-          
-          // Use the setUser method to directly log in
+
           const { setUser } = useAuthStore.getState();
           setUser(mockUser);
-          
-          // Navigation will be handled by useEffect
         } else {
           throw new Error('Please enter both email and password');
         }
+
+      // For University, use email and digital signature (demo)
       } else if (selectedRole === 'institution') {
-        // For University, use email and digital signature
-        if (email && digitalSignature) {
+        // For institution: require a key loaded from USB/pendrive (stored in localStorage)
+        if (demoPrivateKey || localStorage.getItem('acvs_demo_univ_priv')) {
+          const result = await signAndVerifyDemo(email);
+          if (!result.verified) throw new Error('Digital signature verification failed (from stored key)');
+
           const mockUser = {
             id: 'univ-1',
             email: email,
@@ -109,26 +284,21 @@ export const SignIn = () => {
             name: 'University Administrator',
             institutionName: email.split('@')[1]?.split('.')[0] || 'University',
             verified: true,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            signatureDemo: { signature: result.signature, message: result.message, publicJwk: result.publicJwk }
           };
-          
-          // Use the setUser method to directly log in
           const { setUser } = useAuthStore.getState();
           setUser(mockUser);
-          
-          // Navigation will be handled by useEffect
         } else {
-          throw new Error('Please enter both email and digital signature');
+          throw new Error('Please load your private key from USB/pendrive before signing in');
         }
+
+      // No role provided: basic email/password infer role by domain
       } else if (!selectedRole) {
-        // Default case when no role is selected - use email/password authentication
         if (email && password) {
-          // Try to determine role based on email domain or use a generic login
-          let userRole = 'student'; // Default to student
           let mockUser;
-          
+
           if (email.includes('@admin') || email.includes('@central')) {
-            userRole = 'admin';
             mockUser = {
               id: 'admin-1',
               email: email,
@@ -138,7 +308,6 @@ export const SignIn = () => {
               createdAt: new Date().toISOString()
             };
           } else if (email.includes('@university') || email.includes('@edu')) {
-            userRole = 'institution';
             mockUser = {
               id: 'univ-1',
               email: email,
@@ -149,7 +318,6 @@ export const SignIn = () => {
               createdAt: new Date().toISOString()
             };
           } else {
-            // Default to student
             mockUser = {
               id: 'student-1',
               email: email,
@@ -169,20 +337,19 @@ export const SignIn = () => {
               }
             };
           }
-          
-          // Use the setUser method to directly log in
+
           const { setUser } = useAuthStore.getState();
           setUser(mockUser);
-          
-          // Navigation will be handled by useEffect
         } else {
           throw new Error('Please enter both email and password');
         }
+
       } else {
-        // For other roles, use OTP flow
+        // Fallback: attempt signIn (if any extra flow provided by store)
         const result = await signIn(email);
-        if (result.otpSent) {
-          setStep('otp');
+        if (result?.otpSent) {
+          // OTP not implemented in UI; inform user
+          throw new Error('OTP flow is not available in this demo. Use email/password or select your role.');
         }
       }
     } catch (err) {
@@ -190,27 +357,6 @@ export const SignIn = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleOtpSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
-
-    try {
-      await signIn(email, otp);
-      // Navigation is handled by useEffect above
-    } catch (err) {
-      setError(err.message || 'Invalid OTP');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const goBack = () => {
-    setStep('email');
-    setOtp('');
-    setError('');
   };
 
   const getRoleTitle = (role) => {
@@ -280,141 +426,104 @@ export const SignIn = () => {
               </div>
             </div>
           )}
-          
-          {step === 'email' ? (
+
+          {/* If a specific role is selected, render the dedicated component */}
+          {selectedRole === 'admin' && <SignInAdmin />}
+          {selectedRole === 'student' && <SignInStudent />}
+          {selectedRole === 'institution' && <SignInInstitution />}
+
+          {/* Generic form when no role is selected */}
+          {!selectedRole && (
             <form className="space-y-6" onSubmit={handleEmailSubmit}>
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                Email address
+              </label>
+              <div className="mt-1">
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Enter your email address"
+                />
+              </div>
+            </div>
+
+            {/* Show password field for Central Authority, Student, or when no role is selected (default to password) */}
+            {(selectedRole === 'admin' || selectedRole === 'student' || !selectedRole) && (
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email address
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
                 </label>
                 <div className="mt-1">
                   <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    placeholder="Enter your email address"
+                    placeholder="Enter your password"
                   />
                 </div>
               </div>
+            )}
 
-              {/* Show password field for Central Authority, Student, or when no role is selected (default to password) */}
-              {(selectedRole === 'admin' || selectedRole === 'student' || !selectedRole) && (
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                    Password
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      id="password"
-                      name="password"
-                      type="password"
-                      autoComplete="current-password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                      placeholder="Enter your password"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Show digital signature field only for University */}
-              {selectedRole === 'institution' && (
-                <div>
-                  <label htmlFor="digitalSignature" className="block text-sm font-medium text-gray-700">
-                    Digital Signature
-                  </label>
-                  <div className="mt-1">
-                    <textarea
-                      id="digitalSignature"
-                      name="digitalSignature"
-                      rows={4}
-                      required
-                      value={digitalSignature}
-                      onChange={(e) => setDigitalSignature(e.target.value)}
-                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                      placeholder="Enter your digital signature certificate or paste signature data"
-                    />
-                  </div>
-                  <p className="mt-2 text-xs text-gray-500">
-                    Enter your institutional digital signature for secure authentication
-                  </p>
-                </div>
-              )}
-
-              {error && (
-                <div className="text-red-600 text-sm">{error}</div>
-              )}
-
+            {/* Show digital signature file loader only for University */}
+            {selectedRole === 'institution' && (
               <div>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                >
-                  {isLoading ? 
-                    (selectedRole === 'admin' || selectedRole === 'institution' || selectedRole === 'student' || !selectedRole ? 'Signing In...' : 'Sending OTP...') : 
-                    (selectedRole === 'admin' || selectedRole === 'institution' || selectedRole === 'student' || !selectedRole ? 'Sign In' : 'Send OTP')
-                  }
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form className="space-y-6" onSubmit={handleOtpSubmit}>
-              <div>
-                <label htmlFor="otp" className="block text-sm font-medium text-gray-700">
-                  Enter OTP
-                </label>
-                <div className="mt-1">
+                <label className="block text-sm font-medium text-gray-700">Digital Signature</label>
+                <div className="mt-1 flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-gray-50 hover:bg-gray-100"
+                  >
+                    Load from USB / Pendrive
+                  </button>
                   <input
-                    id="otp"
-                    name="otp"
-                    type="text"
-                    autoComplete="one-time-code"
-                    required
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                    placeholder="Enter 6-digit OTP"
-                    maxLength="6"
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json,.jwk,.pem,.key,text/plain"
+                    onChange={(e) => handleKeyFile(e.target.files && e.target.files[0])}
+                    className="hidden"
                   />
+                  {signing && <div className="text-sm text-gray-600">Signing…</div>}
                 </div>
-                <p className="mt-2 text-sm text-gray-500">
-                  OTP sent to {email}
+
+                {keyFileName && (
+                  <div className="mt-2 text-sm text-gray-700">Loaded key file: <span className="font-medium">{keyFileName}</span></div>
+                )}
+                <p className="mt-2 text-xs text-gray-500">
+                  Select a private key file from your USB/pendrive (JWK JSON or PEM PKCS#8). The login will proceed automatically after loading the key.
                 </p>
               </div>
+            )}
 
-              {error && (
-                <div className="text-red-600 text-sm">{error}</div>
-              )}
+            {error && (
+              <div className="text-red-600 text-sm">{error}</div>
+            )}
 
-              <div className="space-y-3">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-                >
-                  {isLoading ? 'Verifying...' : 'Sign In'}
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={goBack}
-                  className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                >
-                  Back
-                </button>
-              </div>
+            <div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {isLoading ? 'Signing In...' : 'Sign In'}
+              </button>
+            </div>
             </form>
           )}
         </div>
-        
+
         {/* University Registration Option */}
         {selectedRole === 'institution' && (
           <div className="mt-6 text-center">
