@@ -326,14 +326,14 @@ export const LandingPage = () => {
                           <FileText className="h-16 w-16 text-gray-400" />
                         </div>
                       )}
-                      <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs">
+                      <div className="absolute top-2 right-2 bg-white bg-opacity-80 text-gray-800 px-2 py-1 rounded text-xs">
                         {file.type.split('/')[1]?.toUpperCase() || 'FILE'}
                       </div>
                       <button
                         onClick={() => handleFilePreview(file)}
-                        className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-20 transition-all duration-200 rounded"
+                        className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/20 transition-all duration-200 rounded group"
                       >
-                        <ZoomIn className="h-8 w-8 text-white opacity-0 hover:opacity-100 transition-opacity" />
+                        <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                       </button>
                     </div>
                     

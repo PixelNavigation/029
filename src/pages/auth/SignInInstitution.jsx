@@ -61,56 +61,17 @@ export default function SignInInstitution() {
     reader.onload = async (e) => {
       const text = e.target.result;
       try {
-        let parsed;
-        try { parsed = JSON.parse(text); } catch (j) { parsed = null; }
-        if (parsed && parsed.kty) {
-          const privStr = JSON.stringify(parsed);
-          const pub = { kty: parsed.kty, n: parsed.n, e: parsed.e, alg: parsed.alg };
-          const pubStr = JSON.stringify(pub);
-          localStorage.setItem('acvs_demo_univ_priv', privStr);
-          localStorage.setItem('acvs_demo_univ_pub', pubStr);
-          setDemoPrivateKey(privStr);
-          setDemoPublicKey(pubStr);
-          setKeyFileName(file.name);
-        } else {
-          const pem = text.trim();
-          const b64 = pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
-          const binary = atob(b64);
-          const len = binary.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-          const der = bytes.buffer;
-          const imported = await window.crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, true, ['sign']);
-          const privJwk = await window.crypto.subtle.exportKey('jwk', imported);
-          const pubJwk = { kty: privJwk.kty, n: privJwk.n, e: privJwk.e, alg: privJwk.alg };
-          const privStr = JSON.stringify(privJwk);
-          const pubStr = JSON.stringify(pubJwk);
-          localStorage.setItem('acvs_demo_univ_priv', privStr);
-          localStorage.setItem('acvs_demo_univ_pub', pubStr);
-          setDemoPrivateKey(privStr);
-          setDemoPublicKey(pubStr);
-          setKeyFileName(file.name);
-        }
-
-        if (!email) {
-          setError('Please enter email before loading the key file');
-          return;
-        }
-
-        const result = await signAndVerify(email);
-        if (!result.verified) throw new Error('Digital signature verification failed');
-        const mockUser = {
-          id: 'univ-1',
-          email,
-          role: 'institution',
-          name: 'University Administrator',
-          institutionName: email.split('@')[1]?.split('.')[0] || 'University',
-          verified: true,
-          createdAt: new Date().toISOString(),
-          signatureDemo: { signature: result.signature, message: result.message, publicJwk: result.publicJwk }
+        // For demo: treat any selected file as the key (no real crypto).
+        const mockKeyMeta = {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          contentPreview: (text || '').slice(0, 256)
         };
-        const { setUser } = useAuthStore.getState();
-        setUser(mockUser);
+        // persist minimal marker so other flows can read that a key was loaded
+        localStorage.setItem('acvs_demo_univ_key_meta', JSON.stringify(mockKeyMeta));
+        setKeyFileName(file.name);
+        // Do NOT auto-login here. User must enter email and click Sign In.
       } catch (err) {
         setError('Failed to load key file: ' + (err.message || err));
       }
@@ -118,8 +79,40 @@ export default function SignInInstitution() {
     reader.readAsText(file);
   };
 
+  // Mock sign-in triggered by button click. Requires email + loaded key.
+
+  const handleSignIn = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setError('');
+    if (!keyFileName) {
+      setError('Please load a key file from USB/pendrive first');
+      return;
+    }
+    if (!email) {
+      setError('Please enter your email before signing in');
+      return;
+    }
+
+    setSigning(true);
+    setTimeout(() => {
+      const mockUser = {
+        id: 'univ-1',
+        email,
+        role: 'institution',
+        name: 'University Administrator',
+        institutionName: email.split('@')[1]?.split('.')[0] || 'University',
+        verified: true,
+        createdAt: new Date().toISOString(),
+        signatureDemo: { keyFile: keyFileName }
+      };
+      const { setUser } = useAuthStore.getState();
+      setUser(mockUser);
+      setSigning(false);
+    }, 250);
+  };
+
   return (
-    <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); /* nothing: login occurs on key load */ }}>
+    <form className="space-y-6" onSubmit={handleSignIn}>
       <div>
         <label htmlFor="institution-email" className="block text-sm font-medium text-gray-700">Email address</label>
         <div className="mt-1">
@@ -135,13 +128,15 @@ export default function SignInInstitution() {
           {signing && <div className="text-sm text-gray-600">Signing…</div>}
         </div>
         {keyFileName && <div className="mt-2 text-sm text-gray-700">Loaded key file: <span className="font-medium">{keyFileName}</span></div>}
-        <p className="mt-2 text-xs text-gray-500">Select a private key file from your USB/pendrive (JWK JSON or PEM PKCS#8). The login will proceed automatically after loading the key.</p>
+        <p className="mt-2 text-xs text-gray-500">Select any file from your USB/pendrive (treated as the demo key). Enter your email, then click Sign In to perform a mock login.</p>
       </div>
 
       {error && <div className="text-red-600 text-sm">{error}</div>}
 
       <div>
-        <button type="submit" disabled className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-300">Load key to sign</button>
+        <button type="submit" disabled={!keyFileName || !email || signing} className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${!keyFileName || !email ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700'}`}>
+          {signing ? 'Signing In...' : 'Sign In'}
+        </button>
       </div>
     </form>
   );
