@@ -331,6 +331,24 @@ export const SignIn = () => {
             </form>
           )}
         </div>
+        
+        {/* University Registration Option */}
+        {selectedRole === 'institution' && (
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              New university? Need to register your institution?
+            </p>
+            <Link
+              to="/auth/university-signup"
+              className="mt-2 inline-flex items-center justify-center px-4 py-2 border border-blue-300 rounded-md shadow-sm text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            >
+              Register Your University
+            </Link>
+            <p className="mt-2 text-xs text-gray-500">
+              Complete verification process to join ACVS
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
