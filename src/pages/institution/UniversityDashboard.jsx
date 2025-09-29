@@ -35,6 +35,8 @@ export const UniversityDashboard = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [editingMap, setEditingMap] = useState({});
   const [editedDataMap, setEditedDataMap] = useState({});
+  const [lastUploadCount, setLastUploadCount] = useState(0);
+  const [lastUploadDate, setLastUploadDate] = useState(null);
 
   const onDrop = async (acceptedFiles) => {
     // Helper: try to extract page count from PDF ArrayBuffer using a regex on the file text.
@@ -96,6 +98,9 @@ export const UniversityDashboard = () => {
     }
 
     setUploadedFiles(prev => [...prev, ...expandedEntries]);
+  // track recent upload info for the UI
+  setLastUploadCount(expandedEntries.length);
+  setLastUploadDate(new Date());
 
     // Auto-process files if in bulk mode
     if (uploadMode === 'bulk' && expandedEntries.length > 0) {
@@ -643,6 +648,24 @@ export const UniversityDashboard = () => {
                       : 'Waiting for Input'
                     }
                   </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Uploads */}
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Upload className="h-5 w-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Recent Uploads</h3>
+              </div>
+              <div className="text-sm text-gray-600">
+                <div className="flex justify-between items-center mb-2">
+                  <span>Certificates Uploaded:</span>
+                  <span className="font-medium text-gray-900">{lastUploadCount}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Last Upload:</span>
+                  <span className="font-medium text-gray-900">{lastUploadDate ? new Date(lastUploadDate).toLocaleString() : '—'}</span>
                 </div>
               </div>
             </div>
