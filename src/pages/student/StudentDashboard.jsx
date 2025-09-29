@@ -24,6 +24,8 @@ import {
   XCircle,
   AlertTriangle,
   Shield,
+  Copy,
+  Share2,
   Eye,
   Clock
 } from 'lucide-react';
@@ -126,7 +128,7 @@ export const StudentDashboard = () => {
           issuedAt: new Date().toISOString()
         };
         
-        const qrDataUrl = await generateQrCode(dummyData, { size: 200 });
+        const qrDataUrl = await generateQrCode(dummyData, { size: 400, margin: 1 });
         setDummyQrCode(qrDataUrl);
       } catch (error) {
         console.error('Failed to generate dummy QR code:', error);
@@ -296,10 +298,23 @@ export const StudentDashboard = () => {
       }
     ];
     
+    // Create submitted documents with verification status
+    const submittedTestDocs = testFiles.map(file => ({
+      ...file,
+      documentType: 'Academic Records',
+      submittedAt: new Date().toISOString(),
+      verificationId: `VER${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+      verificationStatus: getDocumentVerificationStatus(file.name),
+    }));
+    
     setUploadedFiles(testFiles);
+    setSubmittedDocuments(submittedTestDocs);
     setSubmissionData({
       documentType: 'Academic Records'
     });
+    
+    // Show verification results
+    setShowVerificationResults(true);
   };
 
   const generateStudentQrCode = async () => {
@@ -634,6 +649,187 @@ export const StudentDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Left Column - Document Submission (3/4 width) */}
           <div className="lg:col-span-3 space-y-6">
+            {/* Uploaded Documents Section - Always visible */}
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <div className="flex items-center space-x-2 mb-6">
+                <FileText className="h-5 w-5 text-green-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Uploaded Documents</h3>
+                <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                  2
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* SSC Memo Document */}
+                <div className="p-4 border border-green-200 bg-green-50 rounded-lg hover:shadow-md transition-all">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 mt-1">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900" title="SSC Memo_shash.pdf">
+                        SSC Memo_shash.pdf
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Academic Records
+                      </p>
+                      
+                      <div className="inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        ✓ Verified
+                      </div>
+                      
+                      <div className="mt-2 text-xs text-gray-500 space-y-1">
+                        <p>Size: 0.13 MB</p>
+                        <p>Uploaded: {new Date().toLocaleDateString()}</p>
+                        <p>ID: VER001SSC</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Inter Short Memo Document */}
+                <div className="p-4 border border-green-200 bg-green-50 rounded-lg hover:shadow-md transition-all">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 mt-1">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900" title="Inter Short Memo_shash.pdf">
+                        Inter Short Memo_shash.pdf
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Academic Records
+                      </p>
+                      
+                      <div className="inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        ✓ Verified
+                      </div>
+                      
+                      <div className="mt-2 text-xs text-gray-500 space-y-1">
+                        <p>Size: 0.10 MB</p>
+                        <p>Uploaded: {new Date().toLocaleDateString()}</p>
+                        <p>ID: VER002INT</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary Statistics */}
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="bg-green-50 p-3 rounded-lg">
+                    <div className="text-lg font-semibold text-green-600">2</div>
+                    <div className="text-sm text-green-600">Verified</div>
+                  </div>
+                  <div className="bg-yellow-50 p-3 rounded-lg">
+                    <div className="text-lg font-semibold text-yellow-600">0</div>
+                    <div className="text-sm text-yellow-600">Semi-verified</div>
+                  </div>
+                  <div className="bg-red-50 p-3 rounded-lg">
+                    <div className="text-lg font-semibold text-red-600">0</div>
+                    <div className="text-sm text-red-600">Unable to Verify</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Already Uploaded Documents Section */}
+            {submittedDocuments.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border p-6">
+                <div className="flex items-center space-x-2 mb-6">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Already Uploaded Documents</h3>
+                  <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                    {submittedDocuments.length}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {submittedDocuments.map((doc) => (
+                    <div
+                      key={doc.verificationId}
+                      className={`p-4 border rounded-lg transition-all hover:shadow-md ${
+                        doc.verificationStatus === 'verified'
+                          ? 'bg-green-50 border-green-200'
+                          : doc.verificationStatus === 'semi-verified'
+                          ? 'bg-yellow-50 border-yellow-200'
+                          : 'bg-red-50 border-red-200'
+                      }`}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 mt-1">
+                          {doc.verificationStatus === 'verified' ? (
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                          ) : doc.verificationStatus === 'semi-verified' ? (
+                            <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                          ) : (
+                            <XCircle className="h-5 w-5 text-red-600" />
+                          )}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate" title={doc.name}>
+                            {doc.name}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {doc.documentType}
+                          </p>
+                          
+                          <div className={`inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium ${
+                            doc.verificationStatus === 'verified'
+                              ? 'bg-green-100 text-green-800'
+                              : doc.verificationStatus === 'semi-verified'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {doc.verificationStatus === 'verified'
+                              ? '✓ Verified'
+                              : doc.verificationStatus === 'semi-verified'
+                              ? '⚠ Semi-verified'
+                              : '✗ Unable to Verify'
+                            }
+                          </div>
+                          
+                          <div className="mt-2 text-xs text-gray-500 space-y-1">
+                            <p>Size: {(doc.size / 1024 / 1024).toFixed(2)} MB</p>
+                            <p>Submitted: {new Date(doc.submittedAt).toLocaleDateString()}</p>
+                            <p>ID: {doc.verificationId}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Summary Statistics */}
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <div className="text-lg font-semibold text-green-600">
+                        {submittedDocuments.filter(d => d.verificationStatus === 'verified').length}
+                      </div>
+                      <div className="text-sm text-green-600">Verified</div>
+                    </div>
+                    <div className="bg-yellow-50 p-3 rounded-lg">
+                      <div className="text-lg font-semibold text-yellow-600">
+                        {submittedDocuments.filter(d => d.verificationStatus === 'semi-verified').length}
+                      </div>
+                      <div className="text-sm text-yellow-600">Semi-verified</div>
+                    </div>
+                    <div className="bg-red-50 p-3 rounded-lg">
+                      <div className="text-lg font-semibold text-red-600">
+                        {submittedDocuments.filter(d => d.verificationStatus === 'unable-to-verify').length}
+                      </div>
+                      <div className="text-sm text-red-600">Unable to Verify</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Document Upload Area */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <div className="flex items-center space-x-2 mb-6">
@@ -1014,36 +1210,88 @@ export const StudentDashboard = () => {
               <div className="border-t p-4">
                 <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
                   <QrCode className="h-4 w-4 mr-2" />
-                  Document QR Scanner
+                  Document QR
                 </h4>
                 
                 {!isScanning && !scannedDocuments ? (
                   <div className="text-center">
-                    <div className="mb-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="mb-3 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
                       {dummyQrCode ? (
-                        <div className="mb-2">
+                        <div className="mb-3">
                           <img 
                             src={dummyQrCode} 
                             alt="Sample QR Code"
-                            className="w-20 h-20 mx-auto mb-2 border border-gray-200 rounded"
+                            className="w-32 h-32 mx-auto mb-3 border-2 border-gray-300 rounded-lg shadow-sm"
                           />
-                          <p className="text-xs text-gray-600 mb-1 font-medium">Sample QR Code</p>
-                          <p className="text-xs text-gray-500">Scan student QR codes to validate documents</p>
+                          <p className="text-xs text-gray-700 mb-1 font-medium">Document Verification QR</p>
+                          <p className="text-xs text-gray-500">Contains verified document information</p>
                         </div>
                       ) : (
-                        <div className="mb-2">
-                          <QrCode className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-xs text-gray-600">Scan student QR codes to validate documents</p>
+                        <div className="mb-3">
+                          <QrCode className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                          <p className="text-xs text-gray-600">Document QR Code</p>
                         </div>
                       )}
                     </div>
-                    <button
-                      onClick={startQRScanning}
-                      className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      <Camera className="h-4 w-4" />
-                      <span>Scan QR Code</span>
-                    </button>
+                    
+                    {/* Copy QR and Share QR buttons */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => {
+                          if (dummyQrCode) {
+                            // Convert data URL to blob and copy to clipboard
+                            fetch(dummyQrCode)
+                              .then(res => res.blob())
+                              .then(blob => {
+                                navigator.clipboard.write([
+                                  new ClipboardItem({ [blob.type]: blob })
+                                ]);
+                                alert('QR code copied to clipboard!');
+                              })
+                              .catch(() => {
+                                // Fallback: copy the data URL as text
+                                navigator.clipboard.writeText(dummyQrCode);
+                                alert('QR code data copied to clipboard!');
+                              });
+                          }
+                        }}
+                        className="flex items-center justify-center space-x-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <Copy className="h-3 w-3" />
+                        <span>Copy QR</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          if (dummyQrCode && navigator.share) {
+                            // Use Web Share API if available
+                            fetch(dummyQrCode)
+                              .then(res => res.blob())
+                              .then(blob => {
+                                const file = new File([blob], 'document-qr.png', { type: blob.type });
+                                navigator.share({
+                                  title: 'Document Verification QR Code',
+                                  text: 'Scan this QR code to verify documents',
+                                  files: [file]
+                                });
+                              })
+                              .catch(() => {
+                                // Fallback: copy to clipboard
+                                navigator.clipboard.writeText(dummyQrCode);
+                                alert('QR code copied to clipboard for sharing!');
+                              });
+                          } else {
+                            // Fallback for browsers without Web Share API
+                            navigator.clipboard.writeText(dummyQrCode);
+                            alert('QR code copied to clipboard for sharing!');
+                          }
+                        }}
+                        className="flex items-center justify-center space-x-1 px-3 py-2 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        <Share2 className="h-3 w-3" />
+                        <span>Share QR</span>
+                      </button>
+                    </div>
                   </div>
                 ) : isScanning ? (
                   <div className="text-center">
