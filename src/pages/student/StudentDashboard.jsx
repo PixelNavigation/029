@@ -43,7 +43,7 @@ export const StudentDashboard = () => {
     course: 'B.Tech Computer Science',
     year: '4th Year',
     university: 'Osmania University',
-    profilePhoto: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
+    profilePhoto: '/shashank-profile.jpg',
     socialLinks: {
       linkedin: 'https://www.linkedin.com/in/sv-reddy/',
       github: 'https://github.com/sv-reddy'
