@@ -33,6 +33,8 @@ export const UniversityDashboard = () => {
   const [uploadMode, setUploadMode] = useState('bulk'); // 'bulk' or 'database'
   const [previewData, setPreviewData] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [editingMap, setEditingMap] = useState({});
+  const [editedDataMap, setEditedDataMap] = useState({});
 
   const onDrop = async (acceptedFiles) => {
     // Helper: try to extract page count from PDF ArrayBuffer using a regex on the file text.
@@ -822,6 +824,46 @@ export const UniversityDashboard = () => {
                           }`}>
                             {cert.extractedData.confidence}% Confidence
                           </span>
+                          {/* Edit control */}
+                          {!editingMap[cert.id] ? (
+                            <button
+                              onClick={() => {
+                                // start editing: clone extractedData
+                                setEditedDataMap(prev => ({ ...prev, [cert.id]: JSON.parse(JSON.stringify(cert.extractedData)) }));
+                                setEditingMap(prev => ({ ...prev, [cert.id]: true }));
+                              }}
+                              className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
+                            >
+                              Edit
+                            </button>
+                          ) : (
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => {
+                                  // save edits
+                                  const updated = editedDataMap[cert.id];
+                                  if (updated) {
+                                    setPreviewData(prev => prev.map(p => p.id === cert.id ? { ...p, extractedData: updated } : p));
+                                    setProcessedCertificates(prev => prev.map(p => p.id === cert.id ? { ...p, extractedData: updated } : p));
+                                  }
+                                  setEditingMap(prev => ({ ...prev, [cert.id]: false }));
+                                }}
+                                className="px-2 py-1 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => {
+                                  // cancel edits
+                                  setEditedDataMap(prev => { const copy = { ...prev }; delete copy[cert.id]; return copy; });
+                                  setEditingMap(prev => ({ ...prev, [cert.id]: false }));
+                                }}
+                                className="px-2 py-1 text-xs bg-gray-50 text-gray-700 rounded hover:bg-gray-100"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                       
@@ -833,22 +875,33 @@ export const UniversityDashboard = () => {
                             Student Information
                           </h4>
                           <div className="space-y-2 text-sm">
-                            <div>
-                              <span className="text-gray-600">Name:</span>
-                              <span className="ml-2 font-medium">{cert.extractedData.studentInfo.fullName}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">ID:</span>
-                              <span className="ml-2 font-medium">{cert.extractedData.studentInfo.studentId}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Email:</span>
-                              <span className="ml-2 font-medium">{cert.extractedData.studentInfo.email}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Roll:</span>
-                              <span className="ml-2 font-medium">{cert.extractedData.studentInfo.rollNumber}</span>
-                            </div>
+                            {editingMap[cert.id] ? (
+                              <div className="space-y-2">
+                                <input value={editedDataMap[cert.id]?.studentInfo?.fullName || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], studentInfo: { ...prev[cert.id].studentInfo, fullName: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
+                                <input value={editedDataMap[cert.id]?.studentInfo?.studentId || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], studentInfo: { ...prev[cert.id].studentInfo, studentId: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
+                                <input value={editedDataMap[cert.id]?.studentInfo?.email || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], studentInfo: { ...prev[cert.id].studentInfo, email: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
+                                <input value={editedDataMap[cert.id]?.studentInfo?.rollNumber || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], studentInfo: { ...prev[cert.id].studentInfo, rollNumber: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <div>
+                                  <span className="text-gray-600">Name:</span>
+                                  <span className="ml-2 font-medium">{cert.extractedData.studentInfo.fullName}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">ID:</span>
+                                  <span className="ml-2 font-medium">{cert.extractedData.studentInfo.studentId}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Email:</span>
+                                  <span className="ml-2 font-medium">{cert.extractedData.studentInfo.email}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Roll:</span>
+                                  <span className="ml-2 font-medium">{cert.extractedData.studentInfo.rollNumber}</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                         
@@ -859,26 +912,38 @@ export const UniversityDashboard = () => {
                             Academic Information
                           </h4>
                           <div className="space-y-2 text-sm">
-                            <div>
-                              <span className="text-gray-600">Course:</span>
-                              <span className="ml-2 font-medium">{cert.extractedData.academicInfo.course}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Specialization:</span>
-                              <span className="ml-2 font-medium">{cert.extractedData.academicInfo.specialization}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Year:</span>
-                              <span className="ml-2 font-medium">{cert.extractedData.academicInfo.yearOfCompletion}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">CGPA:</span>
-                              <span className="ml-2 font-medium">{cert.extractedData.academicInfo.cgpa}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Grade:</span>
-                              <span className="ml-2 font-medium">{cert.extractedData.academicInfo.grade}</span>
-                            </div>
+                            {editingMap[cert.id] ? (
+                              <div className="space-y-2">
+                                <input value={editedDataMap[cert.id]?.academicInfo?.course || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], academicInfo: { ...prev[cert.id].academicInfo, course: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
+                                <input value={editedDataMap[cert.id]?.academicInfo?.specialization || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], academicInfo: { ...prev[cert.id].academicInfo, specialization: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
+                                <input value={editedDataMap[cert.id]?.academicInfo?.yearOfCompletion || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], academicInfo: { ...prev[cert.id].academicInfo, yearOfCompletion: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
+                                <input value={editedDataMap[cert.id]?.academicInfo?.cgpa || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], academicInfo: { ...prev[cert.id].academicInfo, cgpa: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
+                                <input value={editedDataMap[cert.id]?.academicInfo?.grade || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], academicInfo: { ...prev[cert.id].academicInfo, grade: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <div>
+                                  <span className="text-gray-600">Course:</span>
+                                  <span className="ml-2 font-medium">{cert.extractedData.academicInfo.course}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Specialization:</span>
+                                  <span className="ml-2 font-medium">{cert.extractedData.academicInfo.specialization}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Year:</span>
+                                  <span className="ml-2 font-medium">{cert.extractedData.academicInfo.yearOfCompletion}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">CGPA:</span>
+                                  <span className="ml-2 font-medium">{cert.extractedData.academicInfo.cgpa}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Grade:</span>
+                                  <span className="ml-2 font-medium">{cert.extractedData.academicInfo.grade}</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                         
@@ -889,22 +954,33 @@ export const UniversityDashboard = () => {
                             Certificate Information
                           </h4>
                           <div className="space-y-2 text-sm">
-                            <div>
-                              <span className="text-gray-600">Type:</span>
-                              <span className="ml-2 font-medium">{cert.extractedData.certificateInfo.certificateType}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Number:</span>
-                              <span className="ml-2 font-medium">{cert.extractedData.certificateInfo.certificateNumber}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Issue Date:</span>
-                              <span className="ml-2 font-medium">{cert.extractedData.certificateInfo.issueDate}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Verification:</span>
-                              <span className="ml-2 font-medium font-mono text-xs">{cert.extractedData.certificateInfo.verificationCode}</span>
-                            </div>
+                            {editingMap[cert.id] ? (
+                              <div className="space-y-2">
+                                <input value={editedDataMap[cert.id]?.certificateInfo?.certificateType || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], certificateInfo: { ...prev[cert.id].certificateInfo, certificateType: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
+                                <input value={editedDataMap[cert.id]?.certificateInfo?.certificateNumber || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], certificateInfo: { ...prev[cert.id].certificateInfo, certificateNumber: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
+                                <input value={editedDataMap[cert.id]?.certificateInfo?.issueDate || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], certificateInfo: { ...prev[cert.id].certificateInfo, issueDate: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
+                                <input value={editedDataMap[cert.id]?.certificateInfo?.verificationCode || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev, [cert.id]: { ...prev[cert.id], certificateInfo: { ...prev[cert.id].certificateInfo, verificationCode: e.target.value } } } }))} className="w-full px-2 py-1 border rounded" />
+                              </div>
+                            ) : (
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <span className="text-gray-600">Type:</span>
+                                  <span className="ml-2 font-medium">{cert.extractedData.certificateInfo.certificateType}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Number:</span>
+                                  <span className="ml-2 font-medium">{cert.extractedData.certificateInfo.certificateNumber}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Issue Date:</span>
+                                  <span className="ml-2 font-medium">{cert.extractedData.certificateInfo.issueDate}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Verification:</span>
+                                  <span className="ml-2 font-medium font-mono text-xs">{cert.extractedData.certificateInfo.verificationCode}</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
