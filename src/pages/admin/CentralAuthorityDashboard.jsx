@@ -60,28 +60,28 @@ export const CentralAuthorityDashboard = () => {
     {
       id: 1,
       action: 'Institution Approved',
-      institution: 'Delhi University',
+      institution: 'Ranchi University',
       timestamp: '2 hours ago',
       status: 'completed'
     },
     {
       id: 2,
       action: 'Certificate Flagged',
-      institution: 'Mumbai College',
+      institution: 'Birla Institute of Technology Mesra',
       timestamp: '4 hours ago',
       status: 'pending'
     },
     {
       id: 3,
       action: 'Audit Report Generated',
-      institution: 'IIT Bombay',
+      institution: 'Indian Institute of Technology (ISM) Dhanbad',
       timestamp: '1 day ago',
       status: 'completed'
     },
     {
       id: 4,
       action: 'New Institution Request',
-      institution: 'Karnataka Institute',
+      institution: 'Sido Kanhu Murmu University',
       timestamp: '2 days ago',
       status: 'pending'
     }
@@ -90,18 +90,18 @@ export const CentralAuthorityDashboard = () => {
   const pendingInstitutions = [
     {
       id: 1,
-      name: 'National Institute of Technology',
-      location: 'Bangalore, Karnataka',
-      type: 'Engineering College',
+      name: 'National Institute of Technology Jamshedpur',
+      location: 'Jamshedpur, Jharkhand',
+      type: 'National Institute of Technology',
       submittedDate: '2025-09-20',
       documents: 12,
       status: 'under_review'
     },
     {
       id: 2,
-      name: 'St. Xavier\'s College',
-      location: 'Mumbai, Maharashtra',
-      type: 'Arts & Science College',
+      name: 'Vinoba Bhave University',
+      location: 'Hazaribagh, Jharkhand',
+      type: 'State University',
       submittedDate: '2025-09-18',
       documents: 8,
       status: 'documents_pending'
@@ -216,7 +216,7 @@ export const CentralAuthorityDashboard = () => {
       id: 1,
       certificateId: 'CERT-2025-001234',
       studentName: 'Rajesh Kumar Sharma',
-      institution: 'Mumbai Technical Institute',
+      institution: 'Ranchi University',
       degree: 'B.Tech Computer Science',
       issueDate: '2025-06-15',
       flagReason: 'Suspicious signature verification',
@@ -227,7 +227,7 @@ export const CentralAuthorityDashboard = () => {
       id: 2,
       certificateId: 'CERT-2025-005678',
       studentName: 'Priya Patel',
-      institution: 'Gujarat Engineering College',
+      institution: 'Indian Institute of Technology (ISM) Dhanbad',
       degree: 'M.Sc Mathematics',
       issueDate: '2025-07-20',
       flagReason: 'Institution not in authorized list',
@@ -238,7 +238,7 @@ export const CentralAuthorityDashboard = () => {
       id: 3,
       certificateId: 'CERT-2025-009876',
       studentName: 'Arjun Singh',
-      institution: 'Delhi College of Engineering',
+      institution: 'Birla Institute of Technology Mesra',
       degree: 'B.E Mechanical',
       issueDate: '2025-08-10',
       flagReason: 'Duplicate certificate number detected',
@@ -249,7 +249,7 @@ export const CentralAuthorityDashboard = () => {
       id: 4,
       certificateId: 'CERT-2025-011223',
       studentName: 'Sneha Reddy',
-      institution: 'Hyderabad Institute of Technology',
+      institution: 'National Institute of Technology Jamshedpur',
       degree: 'MBA Finance',
       issueDate: '2025-09-05',
       flagReason: 'Grade discrepancy with records',
@@ -260,7 +260,7 @@ export const CentralAuthorityDashboard = () => {
       id: 5,
       certificateId: 'CERT-2025-013579',
       studentName: 'Vikram Gupta',
-      institution: 'Bangalore University',
+      institution: 'Vinoba Bhave University',
       degree: 'Ph.D Computer Science',
       issueDate: '2025-08-30',
       flagReason: 'Fraudulent watermark detected',
@@ -272,7 +272,7 @@ export const CentralAuthorityDashboard = () => {
   const auditReports = [
     {
       id: 1,
-      institution: 'Indian Institute of Technology Bombay',
+      institution: 'Indian Institute of Technology (ISM) Dhanbad',
       reportDate: '2025-08-15',
       auditor: 'Dr. Ramesh Chandra',
       type: 'Annual Compliance Audit',
@@ -283,7 +283,7 @@ export const CentralAuthorityDashboard = () => {
     },
     {
       id: 2,
-      institution: 'University of Delhi',
+      institution: 'Ranchi University',
       reportDate: '2025-07-20',
       auditor: 'Prof. Sunita Sharma',
       type: 'Certificate Verification Audit',
@@ -294,7 +294,7 @@ export const CentralAuthorityDashboard = () => {
     },
     {
       id: 3,
-      institution: 'Anna University',
+      institution: 'Birla Institute of Technology Mesra',
       reportDate: '2025-06-30',
       auditor: 'Dr. K. Ramanathan',
       type: 'Security Assessment',
@@ -305,7 +305,7 @@ export const CentralAuthorityDashboard = () => {
     },
     {
       id: 4,
-      institution: 'Jadavpur University',
+      institution: 'National Institute of Technology Jamshedpur',
       reportDate: '2025-09-10',
       auditor: 'Dr. Anjali Banerjee',
       type: 'Digital Infrastructure Audit',
@@ -316,7 +316,7 @@ export const CentralAuthorityDashboard = () => {
     },
     {
       id: 5,
-      institution: 'Vellore Institute of Technology',
+      institution: 'Vinoba Bhave University',
       reportDate: '2025-08-25',
       auditor: 'Mr. Suresh Kumar',
       type: 'Annual Compliance Audit',
@@ -327,7 +327,7 @@ export const CentralAuthorityDashboard = () => {
     },
     {
       id: 6,
-      institution: 'Pune University',
+      institution: 'Central University of Jharkhand',
       reportDate: '2025-05-15',
       auditor: 'Dr. Meera Joshi',
       type: 'Risk Assessment',
