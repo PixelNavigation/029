@@ -1092,7 +1092,7 @@ export const StudentDashboard = () => {
                   />
                 </div>
                 <h3 className="text-lg font-bold text-white text-center">{currentUser?.name}</h3>
-                <p className="text-green-100 text-sm text-center">Apar ID: {currentUser?.studentId}</p>
+                <p className="text-green-100 text-sm text-center">Apaar ID: {currentUser?.studentId}</p>
               </div>
 
               {/* Profile Details */}
