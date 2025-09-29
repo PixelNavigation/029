@@ -567,9 +567,6 @@ export const CentralAuthorityDashboard = () => {
                       <button className="flex-1 px-3 py-1.5 text-xs font-medium text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors">
                         View Details
                       </button>
-                      <button className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded hover:bg-gray-50 transition-colors">
-                        Audit
-                      </button>
                     </div>
                   </div>
                 ))}
@@ -685,12 +682,9 @@ export const CentralAuthorityDashboard = () => {
                         <button className="px-3 py-1.5 text-xs font-medium text-blue-600 border border-blue-600 rounded hover:bg-blue-50 transition-colors">
                           View Details
                         </button>
-                        <button className="px-3 py-1.5 text-xs font-medium text-green-600 border border-green-600 rounded hover:bg-green-50 transition-colors">
-                          Investigate
-                        </button>
                         {cert.status !== 'blocked' && (
                           <button className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-600 rounded hover:bg-red-50 transition-colors">
-                            Block Certificate
+                            Blacklist
                           </button>
                         )}
                       </div>
