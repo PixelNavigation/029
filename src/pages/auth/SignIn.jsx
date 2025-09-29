@@ -120,6 +120,64 @@ export const SignIn = () => {
         } else {
           throw new Error('Please enter both email and digital signature');
         }
+      } else if (!selectedRole) {
+        // Default case when no role is selected - use email/password authentication
+        if (email && password) {
+          // Try to determine role based on email domain or use a generic login
+          let userRole = 'student'; // Default to student
+          let mockUser;
+          
+          if (email.includes('@admin') || email.includes('@central')) {
+            userRole = 'admin';
+            mockUser = {
+              id: 'admin-1',
+              email: email,
+              role: 'admin',
+              name: 'Central Administrator',
+              verified: true,
+              createdAt: new Date().toISOString()
+            };
+          } else if (email.includes('@university') || email.includes('@edu')) {
+            userRole = 'institution';
+            mockUser = {
+              id: 'univ-1',
+              email: email,
+              role: 'institution',
+              name: 'University Administrator',
+              institutionName: email.split('@')[1]?.split('.')[0] || 'University',
+              verified: true,
+              createdAt: new Date().toISOString()
+            };
+          } else {
+            // Default to student
+            mockUser = {
+              id: 'student-1',
+              email: email,
+              role: 'student',
+              name: 'John Doe',
+              studentId: '1608-22-733-130',
+              course: 'B.Tech Computer Science',
+              year: '4th Year',
+              university: 'Osmania University',
+              profilePhoto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+              verified: true,
+              createdAt: new Date().toISOString(),
+              socialLinks: {
+                linkedin: 'https://linkedin.com/in/johndoe',
+                github: 'https://github.com/johndoe',
+                portfolio: 'https://johndoe.dev'
+              }
+            };
+          }
+          
+          // Use the setUser method to directly log in
+          const { setUser } = useAuthStore.getState();
+          setUser(mockUser);
+          
+          // Navigation will be handled by useEffect
+        } else {
+          throw new Error('Please enter both email and password');
+        }
       } else {
         // For other roles, use OTP flow
         const result = await signIn(email);
@@ -189,6 +247,19 @@ export const SignIn = () => {
         <p className="mt-2 text-center text-sm text-gray-600">
           {selectedRole ? `Access your ${getRoleTitle(selectedRole).toLowerCase()} portal` : 'Sign in to your account'}
         </p>
+        
+        {/* Show role selection hint when no role is provided */}
+        {!selectedRole && (
+          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-800 text-center">
+              💡 For a better experience, please{' '}
+              <Link to="/" className="font-medium underline hover:text-blue-900">
+                select your role from the homepage
+              </Link>{' '}
+              before signing in.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -231,8 +302,8 @@ export const SignIn = () => {
                 </div>
               </div>
 
-              {/* Show password field for Central Authority and Student */}
-              {(selectedRole === 'admin' || selectedRole === 'student') && (
+              {/* Show password field for Central Authority, Student, or when no role is selected (default to password) */}
+              {(selectedRole === 'admin' || selectedRole === 'student' || !selectedRole) && (
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                     Password
@@ -288,8 +359,8 @@ export const SignIn = () => {
                   className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                 >
                   {isLoading ? 
-                    (selectedRole === 'admin' || selectedRole === 'institution' || selectedRole === 'student' ? 'Signing In...' : 'Sending OTP...') : 
-                    (selectedRole === 'admin' || selectedRole === 'institution' || selectedRole === 'student' ? 'Sign In' : 'Send OTP')
+                    (selectedRole === 'admin' || selectedRole === 'institution' || selectedRole === 'student' || !selectedRole ? 'Signing In...' : 'Sending OTP...') : 
+                    (selectedRole === 'admin' || selectedRole === 'institution' || selectedRole === 'student' || !selectedRole ? 'Sign In' : 'Send OTP')
                   }
                 </button>
               </div>
