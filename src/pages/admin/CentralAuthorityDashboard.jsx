@@ -215,74 +215,57 @@ export const CentralAuthorityDashboard = () => {
     {
       id: 1,
       certificateId: 'CERT-2025-001234',
-      studentName: 'Amit Kumar Singh',
-      institution: 'Birla Institute of Technology Mesra',
+      studentName: 'Rajesh Kumar Sharma',
+      institution: 'Mumbai Technical Institute',
       degree: 'B.Tech Computer Science',
       issueDate: '2025-06-15',
       flagReason: 'Suspicious signature verification',
       severity: 'high',
-      status: 'investigating',
-      location: 'Ranchi, Jharkhand'
+      status: 'investigating'
     },
     {
       id: 2,
       certificateId: 'CERT-2025-005678',
-      studentName: 'Priya Kumari',
-      institution: 'Ranchi University',
+      studentName: 'Priya Patel',
+      institution: 'Gujarat Engineering College',
       degree: 'M.Sc Mathematics',
       issueDate: '2025-07-20',
-      flagReason: 'Grade discrepancy with academic records',
-      severity: 'medium',
-      status: 'investigating',
-      location: 'Ranchi, Jharkhand'
+      flagReason: 'Institution not in authorized list',
+      severity: 'critical',
+      status: 'blocked'
     },
     {
       id: 3,
       certificateId: 'CERT-2025-009876',
-      studentName: 'Ravi Oraon',
-      institution: 'National Institute of Technology Jamshedpur',
-      degree: 'B.E Mechanical Engineering',
+      studentName: 'Arjun Singh',
+      institution: 'Delhi College of Engineering',
+      degree: 'B.E Mechanical',
       issueDate: '2025-08-10',
       flagReason: 'Duplicate certificate number detected',
-      severity: 'critical',
-      status: 'blocked',
-      location: 'Jamshedpur, Jharkhand'
+      severity: 'medium',
+      status: 'resolved'
     },
     {
       id: 4,
       certificateId: 'CERT-2025-011223',
-      studentName: 'Sneha Mahato',
-      institution: 'Central University of Jharkhand',
+      studentName: 'Sneha Reddy',
+      institution: 'Hyderabad Institute of Technology',
       degree: 'MBA Finance',
       issueDate: '2025-09-05',
-      flagReason: 'Inconsistent enrollment dates',
+      flagReason: 'Grade discrepancy with records',
       severity: 'medium',
-      status: 'resolved',
-      location: 'Ranchi, Jharkhand'
+      status: 'investigating'
     },
     {
       id: 5,
       certificateId: 'CERT-2025-013579',
-      studentName: 'Deepak Tirkey',
-      institution: 'Kolhan University',
-      degree: 'B.Com Honours',
+      studentName: 'Vikram Gupta',
+      institution: 'Bangalore University',
+      degree: 'Ph.D Computer Science',
       issueDate: '2025-08-30',
-      flagReason: 'Missing digital watermark',
-      severity: 'high',
-      status: 'investigating',
-      location: 'Chaibasa, Jharkhand'
-    },
-    {
-      id: 6,
-      certificateId: 'CERT-2025-014567',
-      studentName: 'Anjali Soren',
-      institution: 'Sido Kanhu Murmu University',
-      degree: 'B.A Political Science',
-      issueDate: '2025-09-12',
-      flagReason: 'Unauthorized modification detected',
+      flagReason: 'Fraudulent watermark detected',
       severity: 'critical',
-      status: 'blocked',
-      location: 'Dumka, Jharkhand'
+      status: 'blocked'
     }
   ];
 
@@ -598,7 +581,7 @@ export const CentralAuthorityDashboard = () => {
         {activeTab === 'certificates' && (
           <div className="space-y-6">
             {/* Alert Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 bg-red-100 rounded-full">
@@ -607,20 +590,20 @@ export const CentralAuthorityDashboard = () => {
                   <div>
                     <h4 className="font-semibold text-red-900">Critical Alerts</h4>
                     <p className="text-2xl font-bold text-red-700">2</p>
-                    <p className="text-sm text-red-600">Blocked certificates</p>
+                    <p className="text-sm text-red-600">Immediate attention required</p>
                   </div>
                 </div>
               </div>
               
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-orange-100 rounded-full">
-                    <Clock className="h-5 w-5 text-orange-600" />
+                  <div className="p-2 bg-yellow-100 rounded-full">
+                    <Clock className="h-5 w-5 text-yellow-600" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-orange-900">Under Investigation</h4>
-                    <p className="text-2xl font-bold text-orange-700">3</p>
-                    <p className="text-sm text-orange-600">Being reviewed</p>
+                    <h4 className="font-semibold text-yellow-900">Under Investigation</h4>
+                    <p className="text-2xl font-bold text-yellow-700">2</p>
+                    <p className="text-sm text-yellow-600">Being reviewed</p>
                   </div>
                 </div>
               </div>
@@ -634,171 +617,6 @@ export const CentralAuthorityDashboard = () => {
                     <h4 className="font-semibold text-green-900">Resolved</h4>
                     <p className="text-2xl font-bold text-green-700">1</p>
                     <p className="text-sm text-green-600">This month</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-blue-100 rounded-full">
-                    <Building2 className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-blue-900">Institutions Affected</h4>
-                    <p className="text-2xl font-bold text-blue-700">5</p>
-                    <p className="text-sm text-blue-600">Jharkhand universities</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Institution-wise Alert Distribution Chart */}
-            <div className="bg-white rounded-xl shadow-sm border">
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Institution-wise Alert Distribution</h3>
-                <p className="text-sm text-gray-600">Flagged certificates by Jharkhand institutions</p>
-              </div>
-              
-              <div className="p-6">
-                <div className="space-y-4">
-                  {[
-                    { name: 'Birla Institute of Technology Mesra', alerts: 1, total: 1245, color: 'bg-red-500' },
-                    { name: 'Ranchi University', alerts: 1, total: 3890, color: 'bg-orange-500' },
-                    { name: 'NIT Jamshedpur', alerts: 1, total: 892, color: 'bg-red-500' },
-                    { name: 'Central University of Jharkhand', alerts: 1, total: 567, color: 'bg-green-500' },
-                    { name: 'Kolhan University', alerts: 1, total: 1234, color: 'bg-orange-500' },
-                    { name: 'Sido Kanhu Murmu University', alerts: 1, total: 987, color: 'bg-red-500' }
-                  ].map((institution, index) => {
-                    const alertRate = (institution.alerts / institution.total * 100).toFixed(3);
-                    const barWidth = Math.max((institution.alerts / institution.total) * 100 * 50, 2); // Scale for visibility
-                    
-                    return (
-                      <div key={index} className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-gray-700 truncate">{institution.name}</span>
-                          <span className="text-xs text-gray-500">{institution.alerts}/{institution.total} ({alertRate}%)</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <div className="flex-1 bg-gray-200 rounded-full h-2">
-                            <div 
-                              className={`h-2 rounded-full ${institution.color}`}
-                              style={{ width: `${barWidth}px` }}
-                            ></div>
-                          </div>
-                          <span className="text-xs text-gray-500 w-12">{alertRate}%</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Alert Severity Timeline */}
-            <div className="bg-white rounded-xl shadow-sm border">
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Alert Severity Timeline</h3>
-                <p className="text-sm text-gray-600">Monthly alert trends in Jharkhand institutions</p>
-              </div>
-              
-              <div className="p-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Timeline Chart */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-4">Last 6 Months Alert Pattern</h4>
-                    <div className="space-y-3">
-                      {[
-                        { month: 'Apr 2025', critical: 0, high: 1, medium: 2 },
-                        { month: 'May 2025', critical: 1, high: 0, medium: 1 },
-                        { month: 'Jun 2025', critical: 0, high: 2, medium: 0 },
-                        { month: 'Jul 2025', critical: 1, high: 1, medium: 3 },
-                        { month: 'Aug 2025', critical: 0, high: 1, medium: 1 },
-                        { month: 'Sep 2025', critical: 2, high: 1, medium: 1 }
-                      ].map((data, index) => {
-                        const total = data.critical + data.high + data.medium;
-                        
-                        return (
-                          <div key={index} className="space-y-2">
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="font-medium text-gray-700">{data.month}</span>
-                              <span className="text-gray-500">{total} alerts</span>
-                            </div>
-                            <div className="flex h-4 bg-gray-200 rounded-full overflow-hidden">
-                              {data.critical > 0 && (
-                                <div 
-                                  className="bg-red-500 flex items-center justify-center text-xs text-white font-medium"
-                                  style={{ width: `${(data.critical / total) * 100}%` }}
-                                  title={`${data.critical} Critical`}
-                                >
-                                  {data.critical > 0 ? data.critical : ''}
-                                </div>
-                              )}
-                              {data.high > 0 && (
-                                <div 
-                                  className="bg-orange-500 flex items-center justify-center text-xs text-white font-medium"
-                                  style={{ width: `${(data.high / total) * 100}%` }}
-                                  title={`${data.high} High`}
-                                >
-                                  {data.high > 0 ? data.high : ''}
-                                </div>
-                              )}
-                              {data.medium > 0 && (
-                                <div 
-                                  className="bg-yellow-500 flex items-center justify-center text-xs text-white font-medium"
-                                  style={{ width: `${(data.medium / total) * 100}%` }}
-                                  title={`${data.medium} Medium`}
-                                >
-                                  {data.medium > 0 ? data.medium : ''}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex justify-between text-xs text-gray-500">
-                              <span>🔴 {data.critical} Critical</span>
-                              <span>🟠 {data.high} High</span>
-                              <span>🟡 {data.medium} Medium</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  
-                  {/* Summary Cards */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-4">Alert Distribution</h4>
-                    <div className="space-y-4">
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                        <div className="text-center">
-                          <h5 className="font-semibold text-red-900">Critical Severity</h5>
-                          <p className="text-xl font-bold text-red-700">4</p>
-                          <p className="text-xs text-red-600">Total in 6 months</p>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                        <div className="text-center">
-                          <h5 className="font-semibold text-orange-900">High Severity</h5>
-                          <p className="text-xl font-bold text-orange-700">6</p>
-                          <p className="text-xs text-orange-600">Total in 6 months</p>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                        <div className="text-center">
-                          <h5 className="font-semibold text-yellow-900">Medium Severity</h5>
-                          <p className="text-xl font-bold text-yellow-700">8</p>
-                          <p className="text-xs text-yellow-600">Total in 6 months</p>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div className="text-center">
-                          <h5 className="font-semibold text-blue-900">Most Affected</h5>
-                          <p className="text-sm font-bold text-blue-700">Ranchi Region</p>
-                          <p className="text-xs text-blue-600">3 institutions</p>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -841,7 +659,6 @@ export const CentralAuthorityDashboard = () => {
                           </div>
                           <p className="text-sm text-gray-600 mb-1">🎓 {cert.degree}</p>
                           <p className="text-sm text-gray-600 mb-1">🏛️ {cert.institution}</p>
-                          <p className="text-sm text-gray-600 mb-1">📍 {cert.location}</p>
                           <p className="text-sm text-gray-500">📅 Issued: {cert.issueDate}</p>
                         </div>
                         
@@ -922,111 +739,255 @@ export const CentralAuthorityDashboard = () => {
               </div>
             </div>
 
-            {/* Verification vs Flagged Certificates Chart */}
-            <div className="bg-white rounded-xl shadow-sm border">
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Certificate Verification Overview</h3>
-                <p className="text-sm text-gray-600">Monthly comparison of verified vs flagged certificates</p>
-              </div>
-              
-              <div className="p-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* Chart */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-4">Last 6 Months Trend</h4>
-                    <div className="space-y-3">
-                      {[
-                        { month: 'Apr 2025', verified: 8420, flagged: 23, total: 8443 },
-                        { month: 'May 2025', verified: 9150, flagged: 31, total: 9181 },
-                        { month: 'Jun 2025', verified: 7890, flagged: 19, total: 7909 },
-                        { month: 'Jul 2025', verified: 9840, flagged: 42, total: 9882 },
-                        { month: 'Aug 2025', verified: 8765, flagged: 28, total: 8793 },
-                        { month: 'Sep 2025', verified: 6234, flagged: 18, total: 6252 }
-                      ].map((data, index) => {
-                        const verifiedPercentage = (data.verified / data.total) * 100;
-                        const flaggedPercentage = (data.flagged / data.total) * 100;
-                        
-                        return (
-                          <div key={index} className="space-y-2">
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="font-medium text-gray-700">{data.month}</span>
-                              <span className="text-gray-500">{data.total.toLocaleString()} total</span>
-                            </div>
-                            <div className="flex h-6 bg-gray-200 rounded-full overflow-hidden">
-                              <div 
-                                className="bg-green-500 flex items-center justify-center text-xs text-white font-medium"
-                                style={{ width: `${verifiedPercentage}%` }}
-                              >
-                                {verifiedPercentage > 15 ? `${data.verified.toLocaleString()}` : ''}
-                              </div>
-                              <div 
-                                className="bg-red-500 flex items-center justify-center text-xs text-white font-medium"
-                                style={{ width: `${flaggedPercentage}%` }}
-                              >
-                                {flaggedPercentage > 5 ? data.flagged : ''}
-                              </div>
-                            </div>
-                            <div className="flex justify-between text-xs text-gray-500">
-                              <span>✅ {data.verified.toLocaleString()} verified ({verifiedPercentage.toFixed(1)}%)</span>
-                              <span>🚩 {data.flagged} flagged ({flaggedPercentage.toFixed(1)}%)</span>
-                            </div>
+            {/* Verification Analytics Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Verification vs Flagged Certificates Chart */}
+              <div className="bg-white rounded-xl shadow-sm border">
+                <div className="p-6 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Certificate Verification Status</h3>
+                  <p className="text-sm text-gray-500">Verified vs Flagged certificates this month</p>
+                </div>
+                <div className="p-6">
+                  <div className="relative">
+                    {/* Simple Bar Chart */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Verified Certificates</span>
+                        <span className="text-sm font-bold text-green-600">23,456 (94.2%)</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div className="bg-green-500 h-3 rounded-full" style={{width: '94.2%'}}></div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Flagged/Suspicious</span>
+                        <span className="text-sm font-bold text-red-600">1,234 (4.9%)</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div className="bg-red-500 h-3 rounded-full" style={{width: '4.9%'}}></div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Under Review</span>
+                        <span className="text-sm font-bold text-yellow-600">230 (0.9%)</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div className="bg-yellow-500 h-3 rounded-full" style={{width: '0.9%'}}></div>
+                      </div>
+                    </div>
+                    
+                    {/* Pie Chart Representation */}
+                    <div className="mt-6 flex justify-center">
+                      <div className="relative w-32 h-32">
+                        <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 100 100">
+                          {/* Verified - 94.2% */}
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="40"
+                            stroke="#10B981"
+                            strokeWidth="10"
+                            fill="transparent"
+                            strokeDasharray="235.6 250"
+                            strokeDashoffset="0"
+                          />
+                          {/* Flagged - 4.9% */}
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="40"
+                            stroke="#EF4444"
+                            strokeWidth="10"
+                            fill="transparent"
+                            strokeDasharray="12.25 250"
+                            strokeDashoffset="-235.6"
+                          />
+                          {/* Under Review - 0.9% */}
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="40"
+                            stroke="#F59E0B"
+                            strokeWidth="10"
+                            fill="transparent"
+                            strokeDasharray="2.25 250"
+                            strokeDashoffset="-247.85"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-gray-900">24,920</div>
+                            <div className="text-xs text-gray-500">Total</div>
                           </div>
-                        );
-                      })}
+                        </div>
+                      </div>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Monthly Trend Chart */}
+              <div className="bg-white rounded-xl shadow-sm border">
+                <div className="p-6 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Monthly Verification Trends</h3>
+                  <p className="text-sm text-gray-500">Certificate verification trends over last 6 months</p>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-4">
+                    {[
+                      { month: 'Apr 2025', verified: 18200, flagged: 890, percentage: 95.1 },
+                      { month: 'May 2025', verified: 19500, flagged: 1200, percentage: 94.2 },
+                      { month: 'Jun 2025', verified: 21000, flagged: 980, percentage: 95.5 },
+                      { month: 'Jul 2025', verified: 22300, flagged: 1100, percentage: 95.3 },
+                      { month: 'Aug 2025', verified: 23100, flagged: 1350, percentage: 94.5 },
+                      { month: 'Sep 2025', verified: 23456, flagged: 1234, percentage: 95.0 }
+                    ].map((data, index) => (
+                      <div key={data.month} className="flex items-center space-x-4">
+                        <div className="w-16 text-xs text-gray-600 font-medium">{data.month}</div>
+                        <div className="flex-1">
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-green-600">✓ {data.verified.toLocaleString()}</span>
+                            <span className="text-red-600">⚠ {data.flagged.toLocaleString()}</span>
+                            <span className="font-medium">{data.percentage}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-green-500 h-2 rounded-full relative"
+                              style={{width: `${data.percentage}%`}}
+                            >
+                              <div 
+                                className="absolute right-0 top-0 bg-red-500 h-2 rounded-r-full"
+                                style={{width: `${((100 - data.percentage) / data.percentage) * 100}%`}}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                   
-                  {/* Summary Stats */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-4">Summary Statistics</h4>
-                    <div className="space-y-4">
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-green-900">Total Verified</p>
-                            <p className="text-2xl font-bold text-green-700">50,299</p>
-                            <p className="text-xs text-green-600">Last 6 months</p>
-                          </div>
-                          <div className="text-green-600">
-                            <CheckCircle className="h-8 w-8" />
-                          </div>
-                        </div>
+                  <div className="mt-6 pt-4 border-t border-gray-200">
+                    <div className="flex justify-between text-sm">
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-green-600">+12.8%</div>
+                        <div className="text-gray-500">Verification Rate</div>
                       </div>
-                      
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-red-900">Total Flagged</p>
-                            <p className="text-2xl font-bold text-red-700">161</p>
-                            <p className="text-xs text-red-600">Last 6 months</p>
-                          </div>
-                          <div className="text-red-600">
-                            <AlertTriangle className="h-8 w-8" />
-                          </div>
-                        </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-red-600">+38.6%</div>
+                        <div className="text-gray-500">Flagged Cases</div>
                       </div>
-                      
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-blue-900">Success Rate</p>
-                            <p className="text-2xl font-bold text-blue-700">99.68%</p>
-                            <p className="text-xs text-blue-600">Verification accuracy</p>
-                          </div>
-                          <div className="text-blue-600">
-                            <TrendingUp className="h-8 w-8" />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                        <div className="text-center">
-                          <p className="text-sm font-medium text-gray-700 mb-2">Average Monthly Processing</p>
-                          <p className="text-lg font-bold text-gray-900">8,410 certificates</p>
-                          <p className="text-xs text-gray-500">27 flagged per month</p>
-                        </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-blue-600">28.9%</div>
+                        <div className="text-gray-500">Growth</div>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Institution Risk Assessment */}
+            <div className="bg-white rounded-xl shadow-sm border">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Institution Risk Assessment</h3>
+                <p className="text-sm text-gray-500">Risk levels based on audit scores and flagged certificates</p>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Low Risk */}
+                  <div className="text-center">
+                    <div className="w-24 h-24 mx-auto mb-4 relative">
+                      <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="35"
+                          stroke="#E5E7EB"
+                          strokeWidth="8"
+                          fill="transparent"
+                        />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="35"
+                          stroke="#10B981"
+                          strokeWidth="8"
+                          fill="transparent"
+                          strokeDasharray="154 220"
+                          strokeDashoffset="0"
+                          className="transition-all duration-1000 ease-out"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xl font-bold text-green-600">70%</span>
+                      </div>
+                    </div>
+                    <h4 className="font-semibold text-green-900 mb-2">Low Risk</h4>
+                    <p className="text-sm text-gray-600">7 institutions with excellent audit scores (90%+)</p>
+                  </div>
+
+                  {/* Medium Risk */}
+                  <div className="text-center">
+                    <div className="w-24 h-24 mx-auto mb-4 relative">
+                      <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="35"
+                          stroke="#E5E7EB"
+                          strokeWidth="8"
+                          fill="transparent"
+                        />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="35"
+                          stroke="#F59E0B"
+                          strokeWidth="8"
+                          fill="transparent"
+                          strokeDasharray="66 220"
+                          strokeDashoffset="0"
+                          className="transition-all duration-1000 ease-out"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xl font-bold text-yellow-600">30%</span>
+                      </div>
+                    </div>
+                    <h4 className="font-semibold text-yellow-900 mb-2">Medium Risk</h4>
+                    <p className="text-sm text-gray-600">3 institutions need monitoring (70-89% scores)</p>
+                  </div>
+
+                  {/* High Risk */}
+                  <div className="text-center">
+                    <div className="w-24 h-24 mx-auto mb-4 relative">
+                      <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="35"
+                          stroke="#E5E7EB"
+                          strokeWidth="8"
+                          fill="transparent"
+                        />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="35"
+                          stroke="#EF4444"
+                          strokeWidth="8"
+                          fill="transparent"
+                          strokeDasharray="22 220"
+                          strokeDashoffset="0"
+                          className="transition-all duration-1000 ease-out"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xl font-bold text-red-600">0%</span>
+                      </div>
+                    </div>
+                    <h4 className="font-semibold text-red-900 mb-2">High Risk</h4>
+                    <p className="text-sm text-gray-600">0 institutions require immediate action (&lt;70%)</p>
                   </div>
                 </div>
               </div>
