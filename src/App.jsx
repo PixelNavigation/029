@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/auth';
 import { LandingPage } from './pages/LandingPage';
 import { SignIn } from './pages/auth/SignIn';
+import { UniversitySignUp } from './pages/auth/UniversitySignUp';
 import { StudentDashboard } from './pages/student/StudentDashboard';
 import { StudentApplicationPortal } from './pages/student/StudentApplicationPortal';
 import { UniversityDashboard } from './pages/institution/UniversityDashboard';
@@ -43,6 +44,7 @@ function App() {
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth/signin" element={<SignIn />} />
+            <Route path="/auth/university-signup" element={<UniversitySignUp />} />
             <Route path="/verify" element={<VerificationPage />} />
             
             {/* Protected Routes */}
