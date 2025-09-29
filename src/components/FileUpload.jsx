@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { useNavigate } from 'react-router-dom';
 import { Upload, FileText, X, CheckCircle, Clock, Loader } from 'lucide-react';
 
 export const FileUpload = ({ onFileSelect, acceptedFileTypes = '.pdf,.jpg,.jpeg,.png' }) => {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState(null); // null, 'processing', 'completed'
+  const navigate = useNavigate();
 
   const onDrop = useCallback((acceptedFiles) => {
     const newFiles = acceptedFiles.map(file => ({
@@ -53,8 +55,39 @@ export const FileUpload = ({ onFileSelect, acceptedFileTypes = '.pdf,.jpg,.jpeg,
       // Show processing message for 3 seconds
       await new Promise(resolve => setTimeout(resolve, 3000));
       
-      setVerificationStatus('completed');
-      setIsProcessing(false);
+      // Generate mock verification data
+      const mockVerificationData = {
+        studentInfo: {
+          name: 'John Doe Smith',
+          email: 'john.smith@university.edu',
+          id: 'STU2024001',
+          university: 'MIT University',
+          course: 'Bachelor of Technology',
+          year: '2020-2024'
+        },
+        verification: {
+          total: uploadedFiles.length,
+          verified: uploadedFiles.length,
+          semiVerified: 0,
+          unableToVerify: 0,
+          verifiedDocuments: uploadedFiles.map((file, index) => ({
+            name: file.name,
+            type: file.name.toLowerCase().includes('degree') ? 'Degree Certificate' : 
+                  file.name.toLowerCase().includes('transcript') ? 'Academic Transcript' : 
+                  'Academic Document',
+            submittedAt: new Date().toISOString(),
+            verificationId: `VER${Date.now()}${index}`
+          }))
+        },
+        issuedAt: new Date().toISOString(),
+        signature: '0x' + Math.random().toString(16).substr(2, 64),
+        version: '2.1.0'
+      };
+      
+      // Navigate to verification page with data
+      const encodedData = encodeURIComponent(JSON.stringify(mockVerificationData));
+      navigate(`/verify?data=${encodedData}`);
+      
     } catch (error) {
       setIsProcessing(false);
       setVerificationStatus(null);
@@ -179,24 +212,14 @@ export const FileUpload = ({ onFileSelect, acceptedFileTypes = '.pdf,.jpg,.jpeg,
                 <CheckCircle className="h-8 w-8 text-green-600" />
                 <div className="text-center">
                   <h3 className="text-lg font-semibold text-green-900 mb-2">
-                    Verification Complete
+                    Redirecting to Detailed Report
                   </h3>
                   <p className="text-green-700 mb-4">
-                    Your document has been successfully verified and authenticated.
+                    Your documents have been processed successfully. Generating detailed verification report...
                   </p>
-                  <div className="space-y-2">
-                    <button className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mr-3">
-                      Download Verification Report
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setVerificationStatus(null);
-                        setUploadedFiles([]);
-                      }}
-                      className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                    >
-                      Verify Another Document
-                    </button>
+                  <div className="flex items-center justify-center space-x-2 text-sm text-green-600">
+                    <Loader className="h-4 w-4 animate-spin" />
+                    <span>Loading comprehensive verification results...</span>
                   </div>
                 </div>
               </div>

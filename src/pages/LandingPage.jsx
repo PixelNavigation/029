@@ -71,8 +71,8 @@ export const LandingPage = () => {
               Verify Your Certificate
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Upload your academic documents for instant verification. Our system supports 
-              multiple file formats and provides real-time authentication results.
+              Upload your academic documents for instant verification. Our AI-powered system will process 
+              your certificates and generate a comprehensive verification report with blockchain authentication.
             </p>
           </div>
           
