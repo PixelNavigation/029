@@ -10,6 +10,7 @@ const arrayBufferToBase64 = (buffer) => {
 
 export default function SignInInstitution() {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState('');
   const [keyFileName, setKeyFileName] = useState('');
@@ -121,6 +122,13 @@ export default function SignInInstitution() {
       </div>
 
       <div>
+        <label htmlFor="institution-password" className="block text-sm font-medium text-gray-700">Password (demo)</label>
+        <div className="mt-1">
+          <input id="institution-password" name="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter demo password" className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+        </div>
+      </div>
+
+      <div>
         <label className="block text-sm font-medium text-gray-700">Digital Signature</label>
         <div className="mt-1 flex items-center space-x-2">
           <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-gray-50 hover:bg-gray-100">Load from USB / Pendrive</button>
@@ -134,7 +142,7 @@ export default function SignInInstitution() {
       {error && <div className="text-red-600 text-sm">{error}</div>}
 
       <div>
-        <button type="submit" disabled={!keyFileName || !email || signing} className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${!keyFileName || !email ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700'}`}>
+        <button type="submit" disabled={!keyFileName || !email || !password || signing} className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${!keyFileName || !email || !password ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700'}`}>
           {signing ? 'Signing In...' : 'Sign In'}
         </button>
       </div>
