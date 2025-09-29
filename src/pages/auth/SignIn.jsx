@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { ArrowLeft, Shield } from 'lucide-react';
+import { ArrowLeft, Shield, CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 
 export const SignIn = () => {
@@ -18,6 +18,7 @@ export const SignIn = () => {
   
   // Get the role from navigation state
   const selectedRole = location.state?.role;
+  const successMessage = location.state?.message;
 
   useEffect(() => {
     if (user) {
@@ -154,12 +155,6 @@ export const SignIn = () => {
     setError('');
   };
 
-  const quickSignIn = (demoEmail) => {
-    setEmail(demoEmail);
-    setStep('otp');
-    setOtp('123456');
-  };
-
   const getRoleTitle = (role) => {
     switch (role) {
       case 'admin': return 'Central Authority';
@@ -198,6 +193,23 @@ export const SignIn = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl sm:rounded-lg sm:px-10">
+          {/* Success Message */}
+          {successMessage && (
+            <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex">
+                <CheckCircle className="h-5 w-5 text-green-400" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-green-800">
+                    Registration Successful!
+                  </p>
+                  <p className="mt-1 text-sm text-green-700">
+                    {successMessage}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {step === 'email' ? (
             <form className="space-y-6" onSubmit={handleEmailSubmit}>
               <div>

@@ -716,6 +716,7 @@ export const UniversitySignUp = () => {
       <div className="max-w-3xl mx-auto mb-8">
         <Link 
           to="/auth/signin"
+          state={{ role: 'institution' }}
           className="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-6"
         >
           <ArrowLeft className="h-5 w-5 mr-2" />
