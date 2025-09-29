@@ -641,11 +641,6 @@ export const StudentDashboard = () => {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Submit Your Documents</h2>
-          <p className="text-gray-600">Upload and manage your academic documents for verification and processing</p>
-        </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Left Column - Document Submission (3/4 width) */}
           <div className="lg:col-span-3 space-y-6">
@@ -1223,13 +1218,10 @@ export const StudentDashboard = () => {
                             alt="Sample QR Code"
                             className="w-32 h-32 mx-auto mb-3 border-2 border-gray-300 rounded-lg shadow-sm"
                           />
-                          <p className="text-xs text-gray-700 mb-1 font-medium">Document Verification QR</p>
-                          <p className="text-xs text-gray-500">Contains verified document information</p>
                         </div>
                       ) : (
                         <div className="mb-3">
                           <QrCode className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                          <p className="text-xs text-gray-600">Document QR Code</p>
                         </div>
                       )}
                     </div>
@@ -1317,12 +1309,6 @@ export const StudentDashboard = () => {
                 ) : null}
                 
                 <canvas ref={canvasRef} className="hidden" />
-                
-                {!scannedDocuments && (
-                  <p className="text-xs text-gray-500 mt-3 text-center">
-                    Scan QR codes to validate student documents and check authenticity
-                  </p>
-                )}
               </div>
 
               {/* Scanned Documents Display */}
@@ -1464,34 +1450,7 @@ export const StudentDashboard = () => {
               )}
             </div>
 
-            {/* Quick Stats */}
-            <div className="bg-white rounded-xl shadow-sm border p-4">
-              <h4 className="text-sm font-medium text-gray-900 mb-3">Quick Stats</h4>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Documents Submitted:</span>
-                  <span className="font-medium text-gray-900">{submittedDocuments.length}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Verified Documents:</span>
-                  <span className="font-medium text-green-600">{submittedDocuments.filter(d => d.verificationStatus === 'verified').length}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Profile Status:</span>
-                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                    Active
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Verification:</span>
-                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                    Verified
-                  </span>
-                </div>
-              </div>
 
-
-            </div>
           </div>
         </div>
       </div>
