@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Navbar } from '../components/Navbar';
 import { FileUpload } from '../components/FileUpload';
+import { QRVerification } from '../components/QRVerification';
 import { 
   Shield, CheckCircle, Users, Building2, Award, GraduationCap, Calendar, User, Mail, BookOpen,
-  FileText, Download, Eye, Hash, Clock, Copy, ZoomIn, X, Printer, Share2
+  FileText, Download, Eye, Hash, Clock, Copy, ZoomIn, X, Printer, Share2, QrCode, Upload, Camera
 } from 'lucide-react';
 
 export const LandingPage = () => {
@@ -12,6 +13,8 @@ export const LandingPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showFilePreview, setShowFilePreview] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState('');
 
   const handleFileSelect = async (files) => {
     setUploadedFiles(files);
@@ -77,6 +80,90 @@ export const LandingPage = () => {
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
+  };
+
+  const startCamera = async () => {
+    try {
+      setCameraError('');
+      setIsCameraOpen(true);
+      
+      // Request camera permission
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment' // Use back camera if available
+        } 
+      });
+      
+      // Create video element to display camera feed
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.setAttribute('playsinline', true); // Required for iOS
+      video.play();
+      
+      // You can add QR code scanning logic here
+      // For now, we'll simulate scanning after 3 seconds
+      setTimeout(async () => {
+        // Stop camera
+        stream.getTracks().forEach(track => track.stop());
+        setIsCameraOpen(false);
+        
+        // Simulate QR code detection and verification
+        setIsProcessing(true);
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        const mockData = {
+          studentInfo: {
+            name: 'Jane Smith (Camera Scan)',
+            email: 'jane.smith@university.edu',
+            university: 'Stanford University',
+            course: 'Master of Science',
+            year: '2020-2022',
+            id: 'STU2022002'
+          },
+          verification: {
+            total: 1,
+            verified: 1,
+            verifiedDocuments: [{
+              name: 'Camera Scanned QR Certificate',
+              type: 'Academic Certificate',
+              submittedAt: new Date().toISOString(),
+              verificationId: `VER${Date.now()}`
+            }]
+          },
+          issuedAt: new Date().toISOString(),
+          signature: Math.random().toString(36).substring(2, 15),
+          version: '2.1.0',
+          blockchainInfo: {
+            transactionHash: '0x' + Math.random().toString(16).substr(2, 64),
+            blockNumber: Math.floor(Math.random() * 1000000) + 15000000,
+            confirmations: Math.floor(Math.random() * 100) + 50
+          },
+          uploadedFiles: []
+        };
+        
+        setVerificationData(mockData);
+        setIsProcessing(false);
+      }, 3000);
+      
+    } catch (error) {
+      setIsCameraOpen(false);
+      console.error('Camera access error:', error);
+      
+      if (error.name === 'NotAllowedError') {
+        setCameraError('Camera access denied. Please allow camera permission and try again.');
+      } else if (error.name === 'NotFoundError') {
+        setCameraError('No camera found on this device.');
+      } else if (error.name === 'NotSupportedError') {
+        setCameraError('Camera is not supported on this device.');
+      } else {
+        setCameraError('Failed to access camera. Please try again.');
+      }
+    }
+  };
+
+  const stopCamera = () => {
+    setIsCameraOpen(false);
+    setCameraError('');
   };
 
   const features = [
@@ -151,7 +238,115 @@ export const LandingPage = () => {
                 <p className="text-gray-500 text-sm mt-2">This may take a few moments</p>
               </div>
             ) : (
-              <FileUpload onFileSelect={handleFileSelect} />
+              <>
+                <FileUpload onFileSelect={handleFileSelect} />
+                
+                {/* QR Verification Section */}
+                <div className="mt-12 pt-8 border-t border-gray-200">
+                  <div className="text-center mb-6">
+                    <div className="bg-blue-600 p-3 rounded-full w-12 h-12 mx-auto mb-3">
+                      <QrCode className="h-6 w-6 text-white" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">
+                      Or Verify with QR Code
+                    </h3>
+                    <p className="text-gray-600">
+                      Quickly verify certificates by scanning their QR codes
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                    {/* Quick Scan Button */}
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                      <Camera className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+                      <h4 className="font-medium text-gray-900 mb-2">Quick Scan</h4>
+                      <p className="text-gray-600 mb-3 text-sm">Use camera to scan QR code</p>
+                      {cameraError && (
+                        <p className="text-red-600 text-xs mb-3">{cameraError}</p>
+                      )}
+                      <button
+                        onClick={isCameraOpen ? stopCamera : startCamera}
+                        disabled={isProcessing}
+                        className={`px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+                          isCameraOpen 
+                            ? 'bg-red-600 text-white hover:bg-red-700' 
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {isProcessing ? 'Processing...' : isCameraOpen ? 'Stop Camera' : 'Start Scanning'}
+                      </button>
+                      {isCameraOpen && (
+                        <p className="text-blue-600 text-xs mt-2">Camera is active - point at QR code</p>
+                      )}
+                    </div>
+
+                    {/* Upload QR Image */}
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                      <Upload className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+                      <h4 className="font-medium text-gray-900 mb-2">Upload QR Image</h4>
+                      <p className="text-gray-600 mb-3 text-sm">Choose image with QR code</p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          
+                          if (!file.type.startsWith('image/')) {
+                            alert('Please upload a valid image file.');
+                            return;
+                          }
+                          
+                          setIsProcessing(true);
+                          // Simulate QR verification from image
+                          await new Promise(resolve => setTimeout(resolve, 1500));
+                          
+                          const mockData = {
+                            studentInfo: {
+                              name: 'Mike Johnson',
+                              email: 'mike.johnson@university.edu',
+                              university: 'Harvard University',
+                              course: 'Bachelor of Arts',
+                              year: '2019-2023',
+                              id: 'STU2023003'
+                            },
+                            verification: {
+                              total: 1,
+                              verified: 1,
+                              verifiedDocuments: [{
+                                name: 'QR Image Verified Certificate',
+                                type: 'Academic Certificate',
+                                submittedAt: new Date().toISOString(),
+                                verificationId: `VER${Date.now()}`
+                              }]
+                            },
+                            issuedAt: new Date().toISOString(),
+                            signature: Math.random().toString(36).substring(2, 15),
+                            version: '2.1.0',
+                            blockchainInfo: {
+                              transactionHash: '0x' + Math.random().toString(16).substr(2, 64),
+                              blockNumber: Math.floor(Math.random() * 1000000) + 15000000,
+                              confirmations: Math.floor(Math.random() * 100) + 50
+                            },
+                            uploadedFiles: []
+                          };
+                          
+                          setVerificationData(mockData);
+                          setIsProcessing(false);
+                        }}
+                        className="hidden"
+                        id="qr-upload"
+                      />
+                      <label
+                        htmlFor="qr-upload"
+                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium cursor-pointer inline-block"
+                      >
+                        Choose File
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         ) : (
