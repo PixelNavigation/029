@@ -592,18 +592,12 @@ export const StudentDashboard = () => {
   // QR data generation is handled in generateStudentQrCode function
 
   const documentTypes = [
-    'Academic Transcript',
-    'Degree Certificate',
-    'Identity Proof',
-    'Address Proof',
-    'Character Certificate',
-    'Medical Certificate',
-    'Fee Receipt',
-    'Scholarship Documents',
-    'Research Papers',
-    'Project Reports',
-    'Internship Certificate',
-    'Other Documents'
+    '10th Certificate',
+    'Inter/Diploma Certificate',
+    'Undergraduate Certificate',
+    'Post Graduate Certificate',
+    'PHD Certificate',
+    'Internship Certificate'
   ];
 
   // Submission purposes removed as requested
@@ -644,112 +638,18 @@ export const StudentDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Left Column - Document Submission (3/4 width) */}
           <div className="lg:col-span-3 space-y-6">
-            {/* Already Uploaded Documents Section */}
-            {submittedDocuments.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border p-6">
-                <div className="flex items-center space-x-2 mb-6">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">Already Uploaded Documents</h3>
-                  <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                    {submittedDocuments.length}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {submittedDocuments.map((doc) => (
-                    <div
-                      key={doc.verificationId}
-                      className={`p-4 border rounded-lg transition-all hover:shadow-md ${
-                        doc.verificationStatus === 'verified'
-                          ? 'bg-green-50 border-green-200'
-                          : doc.verificationStatus === 'semi-verified'
-                          ? 'bg-yellow-50 border-yellow-200'
-                          : 'bg-red-50 border-red-200'
-                      }`}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div className="flex-shrink-0 mt-1">
-                          {doc.verificationStatus === 'verified' ? (
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                          ) : doc.verificationStatus === 'semi-verified' ? (
-                            <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-red-600" />
-                          )}
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate" title={doc.name}>
-                            {doc.name}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {doc.documentType}
-                          </p>
-                          
-                          <div className={`inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium ${
-                            doc.verificationStatus === 'verified'
-                              ? 'bg-green-100 text-green-800'
-                              : doc.verificationStatus === 'semi-verified'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {doc.verificationStatus === 'verified'
-                              ? '✓ Verified'
-                              : doc.verificationStatus === 'semi-verified'
-                              ? '⚠ Semi-verified'
-                              : '✗ Unable to Verify'
-                            }
-                          </div>
-                          
-                          <div className="mt-2 text-xs text-gray-500 space-y-1">
-                            <p>Size: {(doc.size / 1024 / 1024).toFixed(2)} MB</p>
-                            <p>Submitted: {new Date(doc.submittedAt).toLocaleDateString()}</p>
-                            <p>ID: {doc.verificationId}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Summary Statistics */}
-                <div className="mt-6 pt-4 border-t border-gray-200">
-                  <div className="grid grid-cols-3 gap-4 text-center">
-                    <div className="bg-green-50 p-3 rounded-lg">
-                      <div className="text-lg font-semibold text-green-600">
-                        {submittedDocuments.filter(d => d.verificationStatus === 'verified').length}
-                      </div>
-                      <div className="text-sm text-green-600">Verified</div>
-                    </div>
-                    <div className="bg-yellow-50 p-3 rounded-lg">
-                      <div className="text-lg font-semibold text-yellow-600">
-                        {submittedDocuments.filter(d => d.verificationStatus === 'semi-verified').length}
-                      </div>
-                      <div className="text-sm text-yellow-600">Semi-verified</div>
-                    </div>
-                    <div className="bg-red-50 p-3 rounded-lg">
-                      <div className="text-lg font-semibold text-red-600">
-                        {submittedDocuments.filter(d => d.verificationStatus === 'unable-to-verify').length}
-                      </div>
-                      <div className="text-sm text-red-600">Unable to Verify</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Uploaded Documents Section - Always visible */}
+            {/* All Documents Section - Merged */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <div className="flex items-center space-x-2 mb-6">
                 <FileText className="h-5 w-5 text-green-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Uploaded Documents</h3>
+                <h3 className="text-lg font-semibold text-gray-900">My Documents</h3>
                 <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                  2
+                  {2 + submittedDocuments.length}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* SSC Memo Document */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {/* Permanent Documents - SSC Memo */}
                 <div className="p-4 border border-green-200 bg-green-50 rounded-lg hover:shadow-md transition-all">
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 mt-1">
@@ -777,7 +677,7 @@ export const StudentDashboard = () => {
                   </div>
                 </div>
 
-                {/* Inter Short Memo Document */}
+                {/* Permanent Documents - Inter Short Memo */}
                 <div className="p-4 border border-green-200 bg-green-50 rounded-lg hover:shadow-md transition-all">
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 mt-1">
@@ -804,21 +704,83 @@ export const StudentDashboard = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Dynamic Submitted Documents */}
+                {submittedDocuments.map((doc) => (
+                  <div
+                    key={doc.verificationId}
+                    className={`p-4 border rounded-lg transition-all hover:shadow-md ${
+                      doc.verificationStatus === 'verified'
+                        ? 'bg-green-50 border-green-200'
+                        : doc.verificationStatus === 'semi-verified'
+                        ? 'bg-yellow-50 border-yellow-200'
+                        : 'bg-red-50 border-red-200'
+                    }`}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 mt-1">
+                        {doc.verificationStatus === 'verified' ? (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        ) : doc.verificationStatus === 'semi-verified' ? (
+                          <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-600" />
+                        )}
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate" title={doc.name}>
+                          {doc.name}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {doc.documentType}
+                        </p>
+                        
+                        <div className={`inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium ${
+                          doc.verificationStatus === 'verified'
+                            ? 'bg-green-100 text-green-800'
+                            : doc.verificationStatus === 'semi-verified'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {doc.verificationStatus === 'verified'
+                            ? '✓ Verified'
+                            : doc.verificationStatus === 'semi-verified'
+                            ? '⚠ Semi-verified'
+                            : '✗ Unable to Verify'
+                          }
+                        </div>
+                        
+                        <div className="mt-2 text-xs text-gray-500 space-y-1">
+                          <p>Size: {(doc.size / 1024 / 1024).toFixed(2)} MB</p>
+                          <p>Submitted: {new Date(doc.submittedAt).toLocaleDateString()}</p>
+                          <p>ID: {doc.verificationId}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Summary Statistics */}
               <div className="mt-6 pt-4 border-t border-gray-200">
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div className="bg-green-50 p-3 rounded-lg">
-                    <div className="text-lg font-semibold text-green-600">2</div>
+                    <div className="text-lg font-semibold text-green-600">
+                      {2 + submittedDocuments.filter(d => d.verificationStatus === 'verified').length}
+                    </div>
                     <div className="text-sm text-green-600">Verified</div>
                   </div>
                   <div className="bg-yellow-50 p-3 rounded-lg">
-                    <div className="text-lg font-semibold text-yellow-600">0</div>
+                    <div className="text-lg font-semibold text-yellow-600">
+                      {submittedDocuments.filter(d => d.verificationStatus === 'semi-verified').length}
+                    </div>
                     <div className="text-sm text-yellow-600">Semi-verified</div>
                   </div>
                   <div className="bg-red-50 p-3 rounded-lg">
-                    <div className="text-lg font-semibold text-red-600">0</div>
+                    <div className="text-lg font-semibold text-red-600">
+                      {submittedDocuments.filter(d => d.verificationStatus === 'unable-to-verify').length}
+                    </div>
                     <div className="text-sm text-red-600">Unable to Verify</div>
                   </div>
                 </div>
