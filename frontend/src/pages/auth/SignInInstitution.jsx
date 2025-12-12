@@ -1,4 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Shield } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 
 const arrayBufferToBase64 = (buffer) => {
@@ -17,6 +19,19 @@ export default function SignInInstitution() {
   const [demoPrivateKey, setDemoPrivateKey] = useState('');
   const [demoPublicKey, setDemoPublicKey] = useState('');
   const fileInputRef = useRef(null);
+
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'institution') {
+        navigate('/institution');
+      } else {
+        navigate('/');
+      }
+    }
+  }, [user, navigate]);
 
   useEffect(() => {
     try {
@@ -62,17 +77,95 @@ export default function SignInInstitution() {
     reader.onload = async (e) => {
       const text = e.target.result;
       try {
-        // For demo: treat any selected file as the key (no real crypto).
-        const mockKeyMeta = {
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          contentPreview: (text || '').slice(0, 256)
-        };
-        // persist minimal marker so other flows can read that a key was loaded
-        localStorage.setItem('acvs_demo_univ_key_meta', JSON.stringify(mockKeyMeta));
+        // try JSON JWK first
+        let parsed;
+        try {
+          parsed = JSON.parse(text);
+        } catch (jsonErr) {
+          parsed = null;
+        }
+
+        if (parsed && parsed.kty) {
+          // assume full JWK (private) provided
+          const privStr = JSON.stringify(parsed);
+          const pub = { kty: parsed.kty, n: parsed.n, e: parsed.e, alg: parsed.alg };
+          const pubStr = JSON.stringify(pub);
+          localStorage.setItem('acvs_demo_univ_priv', privStr);
+          localStorage.setItem('acvs_demo_univ_pub', pubStr);
+          setDemoPrivateKey(privStr);
+          setDemoPublicKey(pubStr);
+          setKeyFileName(file.name);
+
+          // attempt sign/verify and login immediately
+          if (!email) {
+            setError('Please enter email before loading the key file');
+            return;
+          }
+          const result = await signAndVerify(email);
+          if (!result.verified) throw new Error('Digital signature verification failed (from file)');
+          const mockUser = {
+            id: 'univ-1',
+            email: email,
+            role: 'institution',
+            name: 'University Administrator',
+            institutionName: email.split('@')[1]?.split('.')[0] || 'University',
+            verified: true,
+            createdAt: new Date().toISOString(),
+            signatureDemo: { signature: result.signature, message: result.message, publicJwk: result.publicJwk }
+          };
+          const { setUser } = useAuthStore.getState();
+          setUser(mockUser);
+          return;
+        }
+
+        // else treat as PEM (PKCS#8)
+        const pem = text.trim();
+        const b64 = pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
+        const binary = atob(b64);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+        const der = bytes.buffer;
+
+        // import private key in pkcs8 format
+        const imported = await window.crypto.subtle.importKey(
+          'pkcs8',
+          der,
+          { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+          true,
+          ['sign']
+        );
+
+        // export as JWK (private contains public params too)
+        const privJwk = await window.crypto.subtle.exportKey('jwk', imported);
+        const pubJwk = { kty: privJwk.kty, n: privJwk.n, e: privJwk.e, alg: privJwk.alg };
+        const privStr = JSON.stringify(privJwk);
+        const pubStr = JSON.stringify(pubJwk);
+        localStorage.setItem('acvs_demo_univ_priv', privStr);
+        localStorage.setItem('acvs_demo_univ_pub', pubStr);
+        setDemoPrivateKey(privStr);
+        setDemoPublicKey(pubStr);
         setKeyFileName(file.name);
-        // Do NOT auto-login here. User must enter email and click Sign In.
+
+        // attempt sign/verify and login immediately
+        if (!email) {
+          setError('Please enter email before loading the key file');
+          return;
+        }
+        const result2 = await signAndVerify(email);
+        if (!result2.verified) throw new Error('Digital signature verification failed (from file)');
+        const mockUser2 = {
+          id: 'univ-1',
+          email: email,
+          role: 'institution',
+          name: 'University Administrator',
+          institutionName: email.split('@')[1]?.split('.')[0] || 'University',
+          verified: true,
+          createdAt: new Date().toISOString(),
+          signatureDemo: { signature: result2.signature, message: result2.message, publicJwk: result2.publicJwk }
+        };
+        const { setUser } = useAuthStore.getState();
+        setUser(mockUser2);
       } catch (err) {
         setError('Failed to load key file: ' + (err.message || err));
       }
@@ -80,22 +173,24 @@ export default function SignInInstitution() {
     reader.readAsText(file);
   };
 
-  // Mock sign-in triggered by button click. Requires email + loaded key.
-
-  const handleSignIn = (e) => {
+  const handleSignIn = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     setError('');
-    if (!keyFileName) {
-      setError('Please load a key file from USB/pendrive first');
-      return;
-    }
-    if (!email) {
-      setError('Please enter your email before signing in');
-      return;
-    }
-
     setSigning(true);
-    setTimeout(() => {
+
+    try {
+      if (!email) {
+        throw new Error('Please enter your email before signing in');
+      }
+
+      if (!keyFileName && !demoPrivateKey && !localStorage.getItem('acvs_demo_univ_priv')) {
+        throw new Error('Please load your private key from USB/pendrive before signing in');
+      }
+
+      // Perform sign and verify
+      const result = await signAndVerify(email);
+      if (!result.verified) throw new Error('Digital signature verification failed');
+
       const mockUser = {
         id: 'univ-1',
         email,
@@ -104,48 +199,140 @@ export default function SignInInstitution() {
         institutionName: email.split('@')[1]?.split('.')[0] || 'University',
         verified: true,
         createdAt: new Date().toISOString(),
-        signatureDemo: { keyFile: keyFileName }
+        signatureDemo: { signature: result.signature, message: result.message, publicJwk: result.publicJwk }
       };
       const { setUser } = useAuthStore.getState();
       setUser(mockUser);
+    } catch (err) {
+      setError(err.message || 'Sign in failed');
+    } finally {
       setSigning(false);
-    }, 250);
+    }
   };
 
   return (
-    <form className="space-y-6" onSubmit={handleSignIn}>
-      <div>
-        <label htmlFor="institution-email" className="block text-sm font-medium text-gray-700">Email address</label>
-        <div className="mt-1">
-          <input id="institution-email" name="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your university email" className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      {/* Header with back button */}
+      <div className="sm:mx-auto sm:w-full sm:max-w-md mb-8">
+        <Link 
+          to="/"
+          className="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-6"
+        >
+          <ArrowLeft className="h-5 w-5 mr-2" />
+          Back to Home
+        </Link>
+      </div>
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="flex justify-center mb-6">
+          <div className="bg-blue-600 p-3 rounded-full">
+            <Shield className="h-8 w-8 text-white" />
+          </div>
+        </div>
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          University Sign In
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Access your university portal
+        </p>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow-xl sm:rounded-lg sm:px-10">
+          <form className="space-y-6" onSubmit={handleSignIn}>
+            <div>
+              <label htmlFor="institution-email" className="block text-sm font-medium text-gray-700">Email address</label>
+              <div className="mt-1">
+                <input 
+                  id="institution-email" 
+                  name="email" 
+                  type="email" 
+                  autoComplete="email"
+                  required 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  placeholder="Enter your university email" 
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="institution-password" className="block text-sm font-medium text-gray-700">Password</label>
+              <div className="mt-1">
+                <input 
+                  id="institution-password" 
+                  name="password" 
+                  type="password" 
+                  autoComplete="current-password"
+                  required 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  placeholder="Enter your password" 
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Digital Signature</label>
+              <div className="mt-1 flex items-center space-x-2">
+                <button 
+                  type="button" 
+                  onClick={() => fileInputRef.current?.click()} 
+                  className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-gray-50 hover:bg-gray-100"
+                >
+                  Load from USB / Pendrive
+                </button>
+                <input 
+                  ref={fileInputRef} 
+                  type="file" 
+                  accept=".json,.jwk,.pem,.key,text/plain" 
+                  onChange={(e) => handleKeyFile(e.target.files && e.target.files[0])} 
+                  className="hidden" 
+                />
+                {signing && <div className="text-sm text-gray-600">Signing…</div>}
+              </div>
+              {keyFileName && (
+                <div className="mt-2 text-sm text-gray-700">
+                  Loaded key file: <span className="font-medium">{keyFileName}</span>
+                </div>
+              )}
+              <p className="mt-2 text-xs text-gray-500">
+                Select a private key file from your USB/pendrive (JWK JSON or PEM PKCS#8). The login will proceed automatically after loading the key.
+              </p>
+            </div>
+
+            {error && <div className="text-red-600 text-sm">{error}</div>}
+
+            <div>
+              <button 
+                type="submit" 
+                disabled={signing} 
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {signing ? 'Signing In...' : 'Sign In'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* University Registration Option */}
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600">
+            New university? Need to register your institution?
+          </p>
+          <Link
+            to="/auth/university-signup"
+            className="mt-2 inline-flex items-center justify-center px-4 py-2 border border-blue-300 rounded-md shadow-sm text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+          >
+            Register Your University
+          </Link>
+          <p className="mt-2 text-xs text-gray-500">
+            Complete verification process to join ACVS
+          </p>
         </div>
       </div>
-
-      <div>
-        <label htmlFor="institution-password" className="block text-sm font-medium text-gray-700">Password (demo)</label>
-        <div className="mt-1">
-          <input id="institution-password" name="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter demo password" className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Digital Signature</label>
-        <div className="mt-1 flex items-center space-x-2">
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-gray-50 hover:bg-gray-100">Load from USB / Pendrive</button>
-          <input ref={fileInputRef} type="file" accept=".json,.jwk,.pem,.key,text/plain" onChange={(e) => handleKeyFile(e.target.files && e.target.files[0])} className="hidden" />
-          {signing && <div className="text-sm text-gray-600">Signing…</div>}
-        </div>
-        {keyFileName && <div className="mt-2 text-sm text-gray-700">Loaded key file: <span className="font-medium">{keyFileName}</span></div>}
-        <p className="mt-2 text-xs text-gray-500">Select any file from your USB/pendrive (treated as the demo key). Enter your email, then click Sign In to perform a mock login.</p>
-      </div>
-
-      {error && <div className="text-red-600 text-sm">{error}</div>}
-
-      <div>
-        <button type="submit" disabled={!keyFileName || !email || !password || signing} className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${!keyFileName || !email || !password ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700'}`}>
-          {signing ? 'Signing In...' : 'Sign In'}
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }

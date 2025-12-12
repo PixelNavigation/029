@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Shield } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
-import SignUpStudent from './SignUpStudent';
 
 export default function SignInStudent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
+
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'student') {
+        navigate('/student');
+      } else {
+        navigate('/');
+      }
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,6 +40,11 @@ export default function SignInStudent() {
         profilePhoto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
         verified: true,
         createdAt: new Date().toISOString(),
+        socialLinks: {
+          linkedin: 'https://linkedin.com/in/johndoe',
+          github: 'https://github.com/johndoe',
+          portfolio: 'https://johndoe.dev'
+        }
       };
       const { setUser } = useAuthStore.getState();
       setUser(mockUser);
@@ -37,64 +55,93 @@ export default function SignInStudent() {
     }
   };
 
-  if (isSignUp) {
-    return (
-      <div>
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Student Account</h2>
-          <p className="text-gray-600">Join our academic verification platform</p>
-        </div>
-        <SignUpStudent />
-        <div className="mt-6 text-center">
-          <button
-            type="button"
-            onClick={() => setIsSignUp(false)}
-            className="text-blue-600 hover:text-blue-500 text-sm font-medium"
-          >
-            Already have an account? Sign in
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Student Sign In</h2>
-        <p className="text-gray-600">Access your academic verification portal</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      {/* Header with back button */}
+      <div className="sm:mx-auto sm:w-full sm:max-w-md mb-8">
+        <Link 
+          to="/"
+          className="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-6"
+        >
+          <ArrowLeft className="h-5 w-5 mr-2" />
+          Back to Home
+        </Link>
       </div>
-      <form className="space-y-6" onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="student-email" className="block text-sm font-medium text-gray-700">Email address</label>
-          <div className="mt-1">
-            <input id="student-email" name="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your student email" className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="flex justify-center mb-6">
+          <div className="bg-blue-600 p-3 rounded-full">
+            <Shield className="h-8 w-8 text-white" />
           </div>
         </div>
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Student Sign In
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Access your academic verification portal
+        </p>
+      </div>
 
-        <div>
-          <label htmlFor="student-password" className="block text-sm font-medium text-gray-700">Password</label>
-          <div className="mt-1">
-            <input id="student-password" name="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
-          </div>
-        </div>
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow-xl sm:rounded-lg sm:px-10">
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <div>
+              <label htmlFor="student-email" className="block text-sm font-medium text-gray-700">Email address</label>
+              <div className="mt-1">
+                <input 
+                  id="student-email" 
+                  name="email" 
+                  type="email" 
+                  autoComplete="email"
+                  required 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  placeholder="Enter your student email" 
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                />
+              </div>
+            </div>
 
-        {error && <div className="text-red-600 text-sm">{error}</div>}
+            <div>
+              <label htmlFor="student-password" className="block text-sm font-medium text-gray-700">Password</label>
+              <div className="mt-1">
+                <input 
+                  id="student-password" 
+                  name="password" 
+                  type="password" 
+                  autoComplete="current-password"
+                  required 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  placeholder="Enter your password" 
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                />
+              </div>
+            </div>
 
-        <div>
-          <button type="submit" disabled={isLoading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">{isLoading ? 'Signing In...' : 'Sign In'}</button>
+            {error && <div className="text-red-600 text-sm">{error}</div>}
+
+            <div>
+              <button 
+                type="submit" 
+                disabled={isLoading} 
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {isLoading ? 'Signing In...' : 'Sign In'}
+              </button>
+            </div>
+            
+            <div className="text-center">
+              <Link
+                to="/auth/signup-student"
+                className="text-blue-600 hover:text-blue-500 text-sm font-medium"
+              >
+                Don't have an account? Sign up
+              </Link>
+            </div>
+          </form>
         </div>
-        
-        <div className="text-center">
-          <button
-            type="button"
-            onClick={() => setIsSignUp(true)}
-            className="text-blue-600 hover:text-blue-500 text-sm font-medium"
-          >
-            Don't have an account? Sign up
-          </button>
-        </div>
-      </form>
+      </div>
     </div>
   );
 }

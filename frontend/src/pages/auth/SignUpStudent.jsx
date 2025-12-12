@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth';
-import { Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, Shield } from 'lucide-react';
 
 export default function SignUpStudent() {
   const [formData, setFormData] = useState({
@@ -22,6 +23,8 @@ export default function SignUpStudent() {
   const [error, setError] = useState('');
   const [aadharVerified, setAadharVerified] = useState(false);
   const [verifyingAadhar, setVerifyingAadhar] = useState(false);
+
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -106,10 +109,18 @@ export default function SignUpStudent() {
         profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name)}&background=3b82f6&color=fff`,
         verified: true,
         createdAt: new Date().toISOString(),
+        socialLinks: {
+          linkedin: '',
+          github: '',
+          portfolio: ''
+        }
       };
 
       const { setUser } = useAuthStore.getState();
       setUser(newUser);
+      
+      // Navigate to student dashboard after successful registration
+      navigate('/student');
     } catch (err) {
       setError(err.message || 'Registration failed');
     } finally {
@@ -118,9 +129,37 @@ export default function SignUpStudent() {
   };
 
   return (
-    <form className="space-y-6" onSubmit={handleSubmit}>
-      {/* Name */}
-      <div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      {/* Header with back button */}
+      <div className="sm:mx-auto sm:w-full sm:max-w-md mb-8">
+        <Link 
+          to="/"
+          className="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-6"
+        >
+          <ArrowLeft className="h-5 w-5 mr-2" />
+          Back to Home
+        </Link>
+      </div>
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="flex justify-center mb-6">
+          <div className="bg-blue-600 p-3 rounded-full">
+            <Shield className="h-8 w-8 text-white" />
+          </div>
+        </div>
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Create Student Account
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Join our academic verification platform
+        </p>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow-xl sm:rounded-lg sm:px-10">
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            {/* Name */}
+            <div>
         <label htmlFor="name" className="block text-sm font-medium text-gray-700">
           Full Name *
         </label>
@@ -395,5 +434,17 @@ export default function SignUpStudent() {
         </button>
       </div>
     </form>
+
+    <div className="mt-6 text-center">
+      <Link
+        to="/auth/signin-student"
+        className="text-blue-600 hover:text-blue-500 text-sm font-medium"
+      >
+        Already have an account? Sign in
+      </Link>
+    </div>
+        </div>
+      </div>
+    </div>
   );
 }
