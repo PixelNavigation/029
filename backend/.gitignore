@@ -1,3 +1,8 @@
 venv/
 .venv/
 .env
+
+# Uploaded files (exclude from git)
+uploads/
+*.pyc
+__pycache__/

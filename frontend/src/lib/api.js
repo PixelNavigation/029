@@ -26,3 +26,36 @@ export const authAPI = {
     return response.data;
   }
 };
+
+export const institutionAPI = {
+  // Upload bulk certificates
+  uploadCertificates: async (files, institutionId, institutionName) => {
+    const formData = new FormData();
+    
+    files.forEach(file => {
+      formData.append('files[]', file);
+    });
+    
+    formData.append('institution_id', institutionId || 'unknown');
+    formData.append('institution_name', institutionName || 'Unknown Institution');
+    
+    const response = await axios.post(`${API_URL}/api/institution/upload-certificates`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      onUploadProgress: (progressEvent) => {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        console.log(`Upload Progress: ${percentCompleted}%`);
+      }
+    });
+    
+    return response.data;
+  },
+
+  // Get all uploads
+  getUploads: async (institutionId) => {
+    const params = institutionId ? { institution_id: institutionId } : {};
+    const response = await axios.get(`${API_URL}/api/institution/uploads`, { params });
+    return response.data;
+  }
+};
