@@ -147,49 +147,7 @@ export const UniversityDashboard = () => {
     setProcessingProgress(0);
     alert('OCR processing system not yet implemented.');
   };
-      setUploadedFiles(prev => 
-        prev.map(f => f.id === file.id ? { ...f, status: 'processing' } : f)
-      );
-      
-      try {
-        const extractedData = await performOCR(file.file);
-        
-        const processedCert = {
-          id: file.id,
-          fileName: file.name,
-          fileSize: file.size,
-          extractedData,
-          processedAt: new Date().toISOString(),
-          status: 'processed'
-        };
-        
-        processed.push(processedCert);
-        
-        // Update file status to processed
-        setUploadedFiles(prev => 
-          prev.map(f => f.id === file.id ? { ...f, status: 'processed' } : f)
-        );
-        
-      } catch (error) {
-        console.error('OCR processing failed:', error);
-        setUploadedFiles(prev => 
-          prev.map(f => f.id === file.id ? { ...f, status: 'error' } : f)
-        );
-      }
-      
-      setProcessingProgress(((i + 1) / files.length) * 100);
-    }
-    
-    setProcessedCertificates(prev => [...prev, ...processed]);
-    setIsProcessing(false);
-    setProcessingProgress(0);
-    
-    // Show preview after processing
-    if (processed.length > 0) {
-      setPreviewData(processed);
-      setShowPreview(true);
-    }
-  };
+  
 
   // Database connection
   const connectToDatabase = async () => {

@@ -34,10 +34,17 @@ export default function SignInStudent() {
       const response = await authAPI.signinStudent(email, password);
       
       if (response.success && response.user) {
-        // Set user in store
+        // Backend now returns secure fields plus user.profile (public profile)
         const { setUser } = useAuthStore.getState();
-        setUser(response.user);
-        // Will automatically navigate via useEffect
+        const { profile, ...rest } = response.user;
+
+        // Flatten profile onto the user object so existing dashboard code
+        // can keep using user.name, user.studentId, etc.
+        setUser({
+          ...rest,
+          ...(profile || {})
+        });
+        // Navigation handled by useEffect
       }
     } catch (err) {
       console.error('Signin error:', err);

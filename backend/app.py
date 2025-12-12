@@ -37,51 +37,57 @@ def signup():
     data = request.get_json() or {}
     
     # Validate required fields
-    required_fields = ['email', 'password', 'name', 'studentId', 'university', 'course', 'year', 'aadharId', 'phone']
+    # Secure fields required to be stored in secure table
+    required_fields = ['email', 'password', 'studentId', 'phone']
     missing_fields = [field for field in required_fields if not data.get(field)]
     
     if missing_fields:
         return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
     
     try:
-        # Check if user already exists
+        # Check if user already exists (by email) in secure table
         existing_user = supabase.table('students').select('*').eq('email', data['email']).execute()
-        
         if existing_user.data and len(existing_user.data) > 0:
             return jsonify({"error": "User with this email already exists. Please sign in."}), 409
-        
-        # Check if student ID already exists
+
+        # Check if student ID already exists in secure table
         existing_student_id = supabase.table('students').select('*').eq('student_id', data['studentId']).execute()
-        
         if existing_student_id.data and len(existing_student_id.data) > 0:
             return jsonify({"error": "Student ID already exists"}), 409
-        
-        # Create new student record
-        student_data = {
+
+        # Insert secure record into students table (only secure data)
+        secure_student = {
             'email': data['email'],
             'password': data['password'],  # In production, hash this!
-            'name': data['name'],
             'student_id': data['studentId'],
-            'university': data['university'],
-            'course': data['course'],
-            'year': data['year'],
-            'aadhar_id': data['aadharId'],
-            'apaar_id': data.get('apaarId', ''),
             'phone': data['phone'],
             'role': 'student',
             'verified': False,
             'created_at': datetime.utcnow().isoformat()
         }
-        
-        result = supabase.table('students').insert(student_data).execute()
-        
-        if result.data and len(result.data) > 0:
-            return jsonify({
-                "success": True,
-                "message": "Account created successfully! Please sign in with your credentials."
-            }), 201
-        else:
-            return jsonify({"error": "Failed to create account"}), 500
+
+        result_secure = supabase.table('students').insert(secure_student).execute()
+        if not (result_secure.data and len(result_secure.data) > 0):
+            return jsonify({"error": "Failed to create secure account record"}), 500
+
+        # Insert public profile data into public_profiles table (non-sensitive)
+        public_profile = {
+            'student_id': data['studentId'],
+            'name': data.get('name', ''),
+            'university': data.get('university', ''),
+            'course': data.get('course', ''),
+            'year': data.get('year', ''),
+            'profile_photo': data.get('profilePhoto', ''),
+            'social_links': data.get('socialLinks', {}),
+            'bio': data.get('bio', '')
+        }
+
+        result_public = supabase.table('public_profiles').insert(public_profile).execute()
+
+        return jsonify({
+            "success": True,
+            "message": "Account created successfully! Please sign in with your credentials."
+        }), 201
             
     except Exception as e:
         print(f"Signup error: {str(e)}")
@@ -105,39 +111,37 @@ def signin():
     try:
         # Fetch student from database
         result = supabase.table('students').select('*').eq('email', email).execute()
-        
         if not result.data or len(result.data) == 0:
             return jsonify({"error": "Invalid email or password"}), 401
-        
+
         student = result.data[0]
-        
         # Verify password (in production, use proper password hashing comparison)
         if student.get('password') != password:
             return jsonify({"error": "Invalid email or password"}), 401
-        
-        # Return user data (exclude password)
+
+        # Fetch public profile for this student_id (if exists)
+        public = supabase.table('public_profiles').select('*').eq('student_id', student.get('student_id')).maybe_single().execute()
+        public_data = public.data if public and public.data else {}
+
+        # Build response (exclude password)
         user_data = {
             'id': student.get('id'),
             'email': student.get('email'),
             'role': student.get('role', 'student'),
-            'name': student.get('name'),
             'studentId': student.get('student_id'),
-            'course': student.get('course'),
-            'year': student.get('year'),
-            'university': student.get('university'),
             'phone': student.get('phone'),
-            'aadharId': student.get('aadhar_id'),
-            'apaarId': student.get('apaar_id'),
             'verified': student.get('verified', False),
             'createdAt': student.get('created_at'),
-            'profilePhoto': f"https://ui-avatars.com/api/?name={student.get('name', 'User').replace(' ', '+')}&background=3b82f6&color=fff",
-            'socialLinks': {
-                'linkedin': '',
-                'github': '',
-                'portfolio': ''
+            'profile': {
+                'name': public_data.get('name') if public_data else '',
+                'university': public_data.get('university') if public_data else '',
+                'course': public_data.get('course') if public_data else '',
+                'year': public_data.get('year') if public_data else '',
+                'profilePhoto': public_data.get('profile_photo') if public_data else f"https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff",
+                'socialLinks': public_data.get('social_links') if public_data else {}
             }
         }
-        
+
         return jsonify({
             "success": True,
             "user": user_data
