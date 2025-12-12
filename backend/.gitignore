@@ -1,11 +1,7 @@
 venv/
 .venv/
 .env
-<<<<<<< HEAD
-=======
-
-# Uploaded files (exclude from git)
 uploads/
 *.pyc
->>>>>>> 668a4742975d6f692c015956abd24a1493836713
+ocr_templates/
 __pycache__/
