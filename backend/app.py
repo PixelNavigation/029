@@ -305,22 +305,24 @@ def upload_certificates():
                     'error': 'File type not allowed'
                 })
 
-    # Auto-process uploaded files with Gemini AI
-    processing_result = None
+    # Extract data for preview (don't save to Excel yet)
+    extracted_data = []
     if uploaded_files:
         try:
-            from ocr_pipeline import batch_process_and_save
-            file_paths = [f['file_path'] for f in uploaded_files]
-            output_dir = str(Path(__file__).parent.parent)
-            
-            processing_result = batch_process_and_save(
-                file_paths,
-                institution_name,
-                output_dir
-            )
+            from ocr_pipeline import process_certificate_file
+            for file_info in uploaded_files:
+                file_path = file_info['file_path']
+                print(f"Extracting data from: {file_path}")
+                data = process_certificate_file(file_path)
+                data['preview_url'] = file_info['preview_url']
+                data['original_filename'] = file_info['original_filename']
+                extracted_data.append(data)
         except Exception as e:
-            print(f"Auto-processing error: {str(e)}")
-            processing_result = {'error': str(e)}
+            print(f"Extraction error: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': f'Data extraction failed: {str(e)}'
+            }), 500
     
     return jsonify({
         'success': True,
@@ -329,8 +331,9 @@ def upload_certificates():
         'failed': len(failed_files),
         'files': uploaded_files,
         'failed_files': failed_files,
-        'processing': processing_result,
-        'message': f'Successfully uploaded and processed {len(uploaded_files)} file(s)'
+        'extracted_data': extracted_data,
+        'institution_name': institution_name,
+        'message': f'Successfully uploaded {len(uploaded_files)} file(s). Please review and confirm.'
     }), 200
 
 
@@ -383,6 +386,45 @@ def preview_file(institution_name, filename):
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/institution/confirm-data", methods=["POST"])
+def confirm_and_save_data():
+    """Confirm and save extracted data to Excel"""
+    data = request.get_json() or {}
+    
+    extracted_data = data.get('extracted_data', [])
+    institution_name = data.get('institution_name', 'Unknown Institution')
+    
+    if not extracted_data:
+        return jsonify({"error": "No data to save"}), 400
+    
+    try:
+        from ocr_pipeline import save_to_excel
+        output_dir = str(Path(__file__).parent.parent)
+        
+        # Save to Excel
+        excel_path = save_to_excel(extracted_data, institution_name, output_dir)
+        
+        if excel_path:
+            return jsonify({
+                'success': True,
+                'excel_file': excel_path,
+                'total_records': len(extracted_data),
+                'message': f'Successfully saved {len(extracted_data)} record(s) to Excel'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to save data to Excel'
+            }), 500
+            
+    except Exception as e:
+        print(f"Save error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to save data: {str(e)}'
+        }), 500
 
 
 @app.route("/api/auth/institution/signup", methods=["POST"])

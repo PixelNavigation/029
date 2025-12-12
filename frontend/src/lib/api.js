@@ -57,5 +57,14 @@ export const institutionAPI = {
     const params = institutionId ? { institution_id: institutionId } : {};
     const response = await axios.get(`${API_URL}/api/institution/uploads`, { params });
     return response.data;
+  },
+
+  // Confirm and save extracted data to Excel
+  confirmData: async (extractedData, institutionName) => {
+    const response = await axios.post(`${API_URL}/api/institution/confirm-data`, {
+      extracted_data: extractedData,
+      institution_name: institutionName
+    });
+    return response.data;
   }
 };

@@ -9,12 +9,11 @@ import pandas as pd
 
 
 def setup_gemini():
-    """Initialize Gemini AI with API key from environment"""
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY not found in environment variables")
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel('gemini-2.0-flash-exp')
+    return genai.GenerativeModel('gemini-2.5-flash')
 
 
 def extract_certificate_data_with_gemini(file_path):
@@ -47,15 +46,15 @@ def extract_certificate_data_with_gemini(file_path):
         Please extract the following details if present:
         1. Student/Recipient Name
         2. Student ID or Registration Number
-        3. Degree/Certificate Type (e.g., B.Tech, M.Sc, Diploma)
-        4. University/Institution Name
+        3. Degree/Certificate Type with Semester (e.g., "B.Tech Semester 5", "M.Sc Sem 3", "Diploma Sem 2")
+        4. University/Institution Name (the issuing organization like "Osmania University")
         5. Course/Program Name
-        6. Date of Issue/Completion
-        7. Grade/CGPA/Marks
+        6. Date of Issue
+        7. CGPA/Percentage
         8. Year of Study/Passing Year
         9. Specialization/Branch
         10. Certificate Number
-        11. Issuing Authority/Signatory
+        11. Subject-wise Grades (extract all subjects with their individual grades/marks)
         12. Any other relevant details
         
         Return the data in JSON format with these keys:
@@ -66,18 +65,24 @@ def extract_certificate_data_with_gemini(file_path):
             "university_name": "",
             "course_name": "",
             "issue_date": "",
-            "completion_date": "",
-            "grade": "",
             "cgpa": "",
             "year_of_passing": "",
             "specialization": "",
             "certificate_number": "",
             "issuing_authority": "",
+            "subject_grades": [
+                {"subject_name": "", "grade": "", "marks": "", "credits": ""}
+            ],
             "additional_details": {},
             "raw_text": ""
         }
         
-        If any field is not found, leave it as an empty string. Include the complete text you can read in the "raw_text" field.
+        IMPORTANT:
+        - degree_type should include semester information (e.g., "B.Tech Semester 5")
+        - issuing_authority should be the organization name (e.g., "Osmania University", "JNTU Hyderabad")
+        - Extract all subjects with their grades/marks in subject_grades array
+        - If any field is not found, leave it as an empty string or empty array
+        - Include the complete text you can read in the "raw_text" field
         """
         
         # Generate content with Gemini
@@ -110,13 +115,12 @@ def extract_certificate_data_with_gemini(file_path):
                 "university_name": "",
                 "course_name": "",
                 "issue_date": "",
-                "completion_date": "",
-                "grade": "",
                 "cgpa": "",
                 "year_of_passing": "",
                 "specialization": "",
                 "certificate_number": "",
                 "issuing_authority": "",
+                "subject_grades": [],
                 "additional_details": {},
                 "raw_text": response_text
             }
@@ -138,6 +142,7 @@ def extract_certificate_data_with_gemini(file_path):
             "degree_type": "",
             "university_name": "",
             "raw_text": "",
+            "subject_grades": [],
             "upload_date": datetime.now().strftime('%Y-%m-%d'),
             "extracted_at": datetime.utcnow().isoformat()
         }
@@ -172,16 +177,29 @@ def save_to_excel(data_list, institution_name, output_dir='e:\\SIH 2025\\029'):
         
         # Define clean column order
         columns = [
-            'student_name', 'student_id', 'university_name', 'degree_type',
-            'course_name', 'specialization', 'grade', 'cgpa', 
-            'year_of_passing', 'issue_date', 'completion_date',
-            'certificate_number', 'issuing_authority', 'upload_date',
+            'student_name', 'student_id', 'unicgpa', 
+            'year_of_passing', 'issue_date',
+            'certificate_number', 'issuing_authority', 
+            'subject_grades', 'upload_date',
             'extracted_at', 'file_name'
         ]
         
         # Prepare data with consistent columns
         prepared_data = []
         for data in data_list:
+            row = {}
+            for col in columns:
+                if col == 'subject_grades':
+                    # Format subject grades as readable string
+                    subject_grades = data.get('subject_grades', [])
+                    if isinstance(subject_grades, list) and subject_grades:
+                        grades_str = '; '.join([f"{sg.get('subject_name', '')}: {sg.get('grade', '')} ({sg.get('marks', '')})" 
+                                               for sg in subject_grades if sg.get('subject_name')])
+                        row[col] = grades_str
+                    else:
+                        row[col] = ''
+                else:
+                    row[col] = data.get(col, '')
             row = {col: data.get(col, '') for col in columns}
             prepared_data.append(row)
         
