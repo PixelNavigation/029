@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 import { institutionAPI } from '../../lib/api';
+import { CertificatePreviewModal } from '../../components/CertificatePreviewModal';
 
 export const UniversityDashboard = () => {
   const { user, signOut } = useAuthStore();
@@ -70,23 +71,30 @@ export const UniversityDashboard = () => {
       );
 
       if (response.success) {
-        // Update local state with uploaded files info
+        // Update local state with uploaded files info including preview URLs
         const uploadedEntries = response.files.map(f => ({
           id: Math.random().toString(36).substring(7),
-          name: f.filename,
+          name: f.original_filename,
+          savedName: f.saved_filename,
           size: f.size,
           type: f.type,
-          status: 'uploaded'
+          status: 'uploaded',
+          filePath: f.file_path,
+          previewUrl: f.preview_url
         }));
 
         setUploadedFiles(prev => [...prev, ...uploadedEntries]);
         setLastUploadCount(uploadedEntries.length);
         setLastUploadDate(new Date());
 
+        // Set extracted data for preview
+        if (response.extracted_data && response.extracted_data.length > 0) {
+          setPreviewData(response.extracted_data);
+          setShowPreview(true);
+        }
+
         // Reload recent batches
         await loadRecentUploads();
-
-        alert(`Successfully uploaded ${response.uploaded} file(s) to server!\nBatch ID: ${response.batch_id}`);
       }
     } catch (error) {
       console.error('Upload failed:', error);
@@ -154,6 +162,13 @@ export const UniversityDashboard = () => {
     setConnectionStatus('disconnected');
   };
 
+  // Handle preview data changes
+  const handlePreviewDataChange = (index, field, value) => {
+    const updated = [...previewData];
+    updated[index][field] = value;
+    setPreviewData(updated);
+  };
+
   // Encryption functions
   const encryptData = async (data) => {
     // TODO: Implement actual encryption
@@ -185,18 +200,30 @@ export const UniversityDashboard = () => {
     setIsProcessing(true);
     
     try {
+      // First, confirm and save data to Excel
+      const saveResponse = await institutionAPI.confirmData(
+        previewData,
+        user?.institutionName || user?.name || 'Unknown Institution'
+      );
+
+      if (!saveResponse.success) {
+        throw new Error(saveResponse.error || 'Failed to save data to Excel');
+      }
+
+      alert(`Successfully saved ${saveResponse.total_records} record(s) to Excel!\nFile: ${saveResponse.excel_file}`);
+
       const results = [];
       
       for (const cert of previewData) {
         // Encrypt data
-        const encrypted = await encryptData(cert.extractedData);
+        const encrypted = await encryptData(cert);
         
         // Push to blockchain
         const blockchainResult = await pushToBlockchain(encrypted);
         
         results.push({
-          certificateId: cert.id,
-          fileName: cert.fileName,
+          certificateId: cert.file_name,
+          fileName: cert.original_filename || cert.file_name,
           encryption: encrypted,
           blockchain: blockchainResult,
           status: 'completed'
@@ -214,7 +241,7 @@ export const UniversityDashboard = () => {
       
     } catch (error) {
       console.error('Submission failed:', error);
-      alert('Failed to submit certificates. Please try again.');
+      alert(`Failed to complete submission: ${error.message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -736,244 +763,17 @@ export const UniversityDashboard = () => {
             )}
           </div>
         </div>
-
-        {/* Data Preview Modal */}
-        {showPreview && previewData && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-              <div className="flex items-center justify-between p-6 border-b">
-                <h2 className="text-xl font-bold text-gray-900">
-                  Extracted Certificate Data Preview
-                </h2>
-                <button
-                  onClick={() => setShowPreview(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              
-              <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-                <div className="grid gap-6">
-                  {previewData.map((cert, index) => (
-                    <div key={cert.id} className="border rounded-lg p-4 bg-gray-50">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-semibold text-lg text-gray-900">
-                          Certificate {index + 1}: {cert.fileName}
-                        </h3>
-                        <div className="flex items-center space-x-2">
-                          {cert.source === 'database' && (
-                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                              Database
-                            </span>
-                          )}
-                          <span className={`px-2 py-1 text-xs rounded ${
-                            cert.extractedData.confidence >= 90 
-                              ? 'bg-green-100 text-green-800' 
-                              : cert.extractedData.confidence >= 80 
-                              ? 'bg-yellow-100 text-yellow-800' 
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {cert.extractedData.confidence}% Confidence
-                          </span>
-                          {/* Edit control */}
-                          {!editingMap[cert.id] ? (
-                            <button
-                              onClick={() => {
-                                // start editing: clone extractedData
-                                setEditedDataMap(prev => ({ ...prev, [cert.id]: JSON.parse(JSON.stringify(cert.extractedData)) }));
-                                setEditingMap(prev => ({ ...prev, [cert.id]: true }));
-                              }}
-                              className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
-                            >
-                              Edit
-                            </button>
-                          ) : (
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => {
-                                  // save edits
-                                  const updated = editedDataMap[cert.id];
-                                  if (updated) {
-                                    setPreviewData(prev => prev.map(p => p.id === cert.id ? { ...p, extractedData: updated } : p));
-                                    setProcessedCertificates(prev => prev.map(p => p.id === cert.id ? { ...p, extractedData: updated } : p));
-                                  }
-                                  setEditingMap(prev => ({ ...prev, [cert.id]: false }));
-                                }}
-                                className="px-2 py-1 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100"
-                              >
-                                Save
-                              </button>
-                              <button
-                                onClick={() => {
-                                  // cancel edits
-                                  setEditedDataMap(prev => { const copy = { ...prev }; delete copy[cert.id]; return copy; });
-                                  setEditingMap(prev => ({ ...prev, [cert.id]: false }));
-                                }}
-                                className="px-2 py-1 text-xs bg-gray-50 text-gray-700 rounded hover:bg-gray-100"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Student Info */}
-                        <div className="bg-white rounded-lg p-4">
-                          <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                            <User className="h-4 w-4 mr-2 text-blue-600" />
-                            Student Information
-                          </h4>
-                          <div className="space-y-2 text-sm">
-                            {editingMap[cert.id] ? (
-                              <div className="space-y-2">
-                                <input value={editedDataMap[cert.id]?.studentInfo?.fullName || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], studentInfo: { ...prev[cert.id].studentInfo, fullName: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
-                                <input value={editedDataMap[cert.id]?.studentInfo?.studentId || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], studentInfo: { ...prev[cert.id].studentInfo, studentId: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
-                                <input value={editedDataMap[cert.id]?.studentInfo?.email || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], studentInfo: { ...prev[cert.id].studentInfo, email: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
-                                <input value={editedDataMap[cert.id]?.studentInfo?.rollNumber || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], studentInfo: { ...prev[cert.id].studentInfo, rollNumber: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <div>
-                                  <span className="text-gray-600">Name:</span>
-                                  <span className="ml-2 font-medium">{cert.extractedData.studentInfo.fullName}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">ID:</span>
-                                  <span className="ml-2 font-medium">{cert.extractedData.studentInfo.studentId}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Email:</span>
-                                  <span className="ml-2 font-medium">{cert.extractedData.studentInfo.email}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Roll:</span>
-                                  <span className="ml-2 font-medium">{cert.extractedData.studentInfo.rollNumber}</span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Academic Info */}
-                        <div className="bg-white rounded-lg p-4">
-                          <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                            <GraduationCap className="h-4 w-4 mr-2 text-blue-600" />
-                            Academic Information
-                          </h4>
-                          <div className="space-y-2 text-sm">
-                            {editingMap[cert.id] ? (
-                              <div className="space-y-2">
-                                <input value={editedDataMap[cert.id]?.academicInfo?.course || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], academicInfo: { ...prev[cert.id].academicInfo, course: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
-                                <input value={editedDataMap[cert.id]?.academicInfo?.specialization || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], academicInfo: { ...prev[cert.id].academicInfo, specialization: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
-                                <input value={editedDataMap[cert.id]?.academicInfo?.yearOfCompletion || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], academicInfo: { ...prev[cert.id].academicInfo, yearOfCompletion: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
-                                <input value={editedDataMap[cert.id]?.academicInfo?.cgpa || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], academicInfo: { ...prev[cert.id].academicInfo, cgpa: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
-                                <input value={editedDataMap[cert.id]?.academicInfo?.grade || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], academicInfo: { ...prev[cert.id].academicInfo, grade: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <div>
-                                  <span className="text-gray-600">Course:</span>
-                                  <span className="ml-2 font-medium">{cert.extractedData.academicInfo.course}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Specialization:</span>
-                                  <span className="ml-2 font-medium">{cert.extractedData.academicInfo.specialization}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Year:</span>
-                                  <span className="ml-2 font-medium">{cert.extractedData.academicInfo.yearOfCompletion}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">CGPA:</span>
-                                  <span className="ml-2 font-medium">{cert.extractedData.academicInfo.cgpa}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Grade:</span>
-                                  <span className="ml-2 font-medium">{cert.extractedData.academicInfo.grade}</span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Certificate Info */}
-                        <div className="bg-white rounded-lg p-4">
-                          <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                            <Award className="h-4 w-4 mr-2 text-blue-600" />
-                            Certificate Information
-                          </h4>
-                          <div className="space-y-2 text-sm">
-                            {editingMap[cert.id] ? (
-                              <div className="space-y-2">
-                                <input value={editedDataMap[cert.id]?.certificateInfo?.certificateType || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], certificateInfo: { ...prev[cert.id].certificateInfo, certificateType: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
-                                <input value={editedDataMap[cert.id]?.certificateInfo?.certificateNumber || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], certificateInfo: { ...prev[cert.id].certificateInfo, certificateNumber: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
-                                <input value={editedDataMap[cert.id]?.certificateInfo?.issueDate || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev[cert.id], certificateInfo: { ...prev[cert.id].certificateInfo, issueDate: e.target.value } } }))} className="w-full px-2 py-1 border rounded" />
-                                <input value={editedDataMap[cert.id]?.certificateInfo?.verificationCode || ''} onChange={(e) => setEditedDataMap(prev => ({ ...prev, [cert.id]: { ...prev, [cert.id]: { ...prev[cert.id], certificateInfo: { ...prev[cert.id].certificateInfo, verificationCode: e.target.value } } } }))} className="w-full px-2 py-1 border rounded" />
-                              </div>
-                            ) : (
-                              <div className="space-y-2 text-sm">
-                                <div>
-                                  <span className="text-gray-600">Type:</span>
-                                  <span className="ml-2 font-medium">{cert.extractedData.certificateInfo.certificateType}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Number:</span>
-                                  <span className="ml-2 font-medium">{cert.extractedData.certificateInfo.certificateNumber}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Issue Date:</span>
-                                  <span className="ml-2 font-medium">{cert.extractedData.certificateInfo.issueDate}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Verification:</span>
-                                  <span className="ml-2 font-medium font-mono text-xs">{cert.extractedData.certificateInfo.verificationCode}</span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="mt-6 flex justify-end space-x-3">
-                  <button
-                    onClick={() => setShowPreview(false)}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                  >
-                    Close Preview
-                  </button>
-                  <button
-                    onClick={handleFinalSubmit}
-                    disabled={isProcessing}
-                    className={`px-6 py-2 rounded-lg transition-colors ${
-                      !isProcessing
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader className="inline h-4 w-4 animate-spin mr-2" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Shield className="inline h-4 w-4 mr-2" />
-                        Encrypt & Submit to Blockchain
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+      
+      {/* Certificate Preview Modal */}
+      <CertificatePreviewModal
+        show={showPreview}
+        previewData={previewData}
+        isProcessing={isProcessing}
+        onClose={() => setShowPreview(false)}
+        onConfirm={handleFinalSubmit}
+        onDataChange={handlePreviewDataChange}
+      />
     </div>
   );
 };

@@ -2,14 +2,15 @@ import os
 import json
 import hashlib
 import uuid
-from flask import Flask, jsonify, request
+import re
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from supabase import create_client
 from dotenv import load_dotenv
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from pathlib import Path
-from ocr_pipeline import verify_certificate
+from ocr_pipeline import process_certificate_file, batch_process_and_save
 
 
 load_dotenv()
@@ -40,9 +41,12 @@ def save_metadata(metadata):
     """Save upload metadata to JSON file"""
     try:
         existing_data = []
-        if os.path.exists(METADATA_FILE):
-            with open(METADATA_FILE, 'r', encoding='utf-8') as f:
-                existing_data = json.load(f)
+        if os.path.exists(METADATA_FILE) and os.path.getsize(METADATA_FILE) > 0:
+            try:
+                with open(METADATA_FILE, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+            except json.JSONDecodeError:
+                existing_data = []
         
         existing_data.append(metadata)
         
@@ -55,9 +59,12 @@ def save_metadata(metadata):
 def get_all_metadata():
     """Retrieve all upload metadata"""
     try:
-        if os.path.exists(METADATA_FILE):
+        if os.path.exists(METADATA_FILE) and os.path.getsize(METADATA_FILE) > 0:
             with open(METADATA_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
+        return []
+    except json.JSONDecodeError:
+        print(f"Error reading metadata: Invalid JSON")
         return []
     except Exception as e:
         print(f"Error reading metadata: {str(e)}")
@@ -405,41 +412,53 @@ def upload_certificates():
     uploaded_files = []
     failed_files = []
     
-    # Create institution-specific subfolder
-    institution_folder = os.path.join(UPLOAD_FOLDER, secure_filename(institution_id))
-    os.makedirs(institution_folder, exist_ok=True)
+    # Sanitize institution name for folder/file naming
+    safe_institution_name = re.sub(r'[^\w\s-]', '', institution_name)
+    safe_institution_name = re.sub(r'[-\s]+', '_', safe_institution_name)
     
-    # Create timestamp-based batch folder
-    batch_id = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-    batch_folder = os.path.join(institution_folder, batch_id)
-    os.makedirs(batch_folder, exist_ok=True)
+    # Create institution-specific subfolder in files directory
+    files_folder = os.path.join(UPLOAD_FOLDER, 'files', safe_institution_name)
+    os.makedirs(files_folder, exist_ok=True)
+    
+    # Get current date and time
+    now = datetime.now()
+    upload_date = now.strftime('%Y%m%d')
+    upload_time = now.strftime('%H%M%S')
+    batch_id = f"{upload_date}_{upload_time}"
 
     for file in files:
         if file and file.filename:
             if allowed_file(file.filename):
                 try:
-                    # Secure the filename
-                    filename = secure_filename(file.filename)
+                    # Get original filename and extension
+                    original_filename = secure_filename(file.filename)
+                    name_without_ext, file_extension = os.path.splitext(original_filename)
+                    
+                    # Create new filename: InstitutionName_YYYYMMDD_HHMMSS_OriginalName.ext
+                    new_filename = f"{safe_institution_name}_{upload_date}_{upload_time}_{name_without_ext}{file_extension}"
                     
                     # Save the file
-                    file_path = os.path.join(batch_folder, filename)
+                    file_path = os.path.join(files_folder, new_filename)
                     file.save(file_path)
                     
                     # Get file info
                     file_size = os.path.getsize(file_path)
-                    file_extension = filename.rsplit('.', 1)[1].lower()
+                    file_extension_type = file_extension[1:].lower() if file_extension else 'unknown'
                     
                     # Prepare metadata
                     file_metadata = {
-                        'id': f"{batch_id}_{filename}",
+                        'id': f"{batch_id}_{new_filename}",
                         'batch_id': batch_id,
                         'institution_id': institution_id,
                         'institution_name': institution_name,
-                        'filename': filename,
+                        'original_filename': file.filename,
+                        'saved_filename': new_filename,
                         'file_path': file_path,
                         'file_size': file_size,
-                        'file_type': file_extension,
-                        'uploaded_at': datetime.utcnow().isoformat(),
+                        'file_type': file_extension_type,
+                        'upload_date': upload_date,
+                        'upload_time': upload_time,
+                        'uploaded_at': now.isoformat(),
                         'status': 'uploaded',
                         'processed': False
                     }
@@ -448,11 +467,17 @@ def upload_certificates():
                     save_metadata(file_metadata)
                     
                     uploaded_files.append({
-                        'filename': filename,
+                        'original_filename': file.filename,
+                        'saved_filename': new_filename,
+                        'file_path': file_path,
                         'size': file_size,
-                        'type': file_extension,
-                        'status': 'success'
+                        'type': file_extension_type,
+                        'status': 'success',
+                        'preview_url': f'/api/files/preview/{safe_institution_name}/{new_filename}'
                     })
+                    
+                    # Mark for processing
+                    file_metadata['needs_processing'] = True
                     
                 except Exception as e:
                     failed_files.append({
@@ -465,6 +490,25 @@ def upload_certificates():
                     'error': 'File type not allowed'
                 })
 
+    # Extract data for preview (don't save to Excel yet)
+    extracted_data = []
+    if uploaded_files:
+        try:
+            from ocr_pipeline import process_certificate_file
+            for file_info in uploaded_files:
+                file_path = file_info['file_path']
+                print(f"Extracting data from: {file_path}")
+                data = process_certificate_file(file_path)
+                data['preview_url'] = file_info['preview_url']
+                data['original_filename'] = file_info['original_filename']
+                extracted_data.append(data)
+        except Exception as e:
+            print(f"Extraction error: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': f'Data extraction failed: {str(e)}'
+            }), 500
+    
     return jsonify({
         'success': True,
         'batch_id': batch_id,
@@ -472,7 +516,9 @@ def upload_certificates():
         'failed': len(failed_files),
         'files': uploaded_files,
         'failed_files': failed_files,
-        'message': f'Successfully uploaded {len(uploaded_files)} file(s)'
+        'extracted_data': extracted_data,
+        'institution_name': institution_name,
+        'message': f'Successfully uploaded {len(uploaded_files)} file(s). Please review and confirm.'
     }), 200
 
 
@@ -510,6 +556,60 @@ def get_uploads():
         'batches': list(batches.values()),
         'total_batches': len(batches)
     }), 200
+
+
+@app.route("/api/files/preview/<institution_name>/<filename>", methods=["GET"])
+def preview_file(institution_name, filename):
+    """Serve uploaded files for preview"""
+    try:
+        file_path = os.path.join(UPLOAD_FOLDER, 'files', institution_name, filename)
+        
+        if not os.path.exists(file_path):
+            return jsonify({"error": "File not found"}), 404
+        
+        return send_file(file_path, as_attachment=False)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/institution/confirm-data", methods=["POST"])
+def confirm_and_save_data():
+    """Confirm and save extracted data to Excel"""
+    data = request.get_json() or {}
+    
+    extracted_data = data.get('extracted_data', [])
+    institution_name = data.get('institution_name', 'Unknown Institution')
+    
+    if not extracted_data:
+        return jsonify({"error": "No data to save"}), 400
+    
+    try:
+        from ocr_pipeline import save_to_excel
+        output_dir = str(Path(__file__).parent.parent)
+        
+        # Save to Excel
+        excel_path = save_to_excel(extracted_data, institution_name, output_dir)
+        
+        if excel_path:
+            return jsonify({
+                'success': True,
+                'excel_file': excel_path,
+                'total_records': len(extracted_data),
+                'message': f'Successfully saved {len(extracted_data)} record(s) to Excel'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to save data to Excel'
+            }), 500
+            
+    except Exception as e:
+        print(f"Save error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to save data: {str(e)}'
+        }), 500
 
 
 @app.route("/api/auth/institution/signup", methods=["POST"])
@@ -645,13 +745,11 @@ if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
 
 
-# Endpoint: certificate verification using OCR + HOG templates
+# Endpoint: certificate verification using Gemini AI OCR
 @app.route("/api/verify/certificate", methods=["POST"])
 def verify_certificate_route():
-    if not supabase:
-        return jsonify({"error": "Database not configured"}), 503
-
-    # Expecting multipart/form-data with file field 'file' and optionally 'studentId'
+    """Verify certificate using Gemini AI and save data to JSON/Excel"""
+    # Expecting multipart/form-data with file field 'file'
     if 'file' not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
@@ -669,9 +767,38 @@ def verify_certificate_route():
     file.save(str(save_path))
 
     try:
-        result = verify_certificate(str(save_path), templates_dir=str(Path(__file__).parent / 'ocr_templates'))
+        # Output directory: project root (029 folder)
+        output_dir = str(Path(__file__).parent.parent)
+        
+        # Process single file using Gemini AI
+        certificate_data = process_certificate_file(str(save_path))
+        
+        # Get institution name from form data or use 'Unknown'
+        institution_name = request.form.get('institution_name', 'Unknown_Institution')
+        
+        # Save to Excel
+        from ocr_pipeline import save_to_excel
+        excel_path = save_to_excel([certificate_data], institution_name, output_dir)
+        
+        result = {
+            'extracted_data': certificate_data,
+            'excel_file': excel_path,
+            'verdict': 'extracted',
+            'confidence': 1.0 if not certificate_data.get('error') else 0.0
+        }
+        
+        # Clean up uploaded file after processing
+        # os.remove(str(save_path))  # Uncomment to delete after processing
+        
+        return jsonify({
+            "success": True,
+            "result": result,
+            "message": "Certificate data extracted and saved successfully"
+        }), 200
+        
     except Exception as e:
         print('Verification error:', str(e))
-        return jsonify({"error": "Verification failed", "detail": str(e)}), 500
-
-    return jsonify({"success": True, "result": result}), 200
+        return jsonify({
+            "error": "Verification failed",
+            "detail": str(e)
+        }), 500
