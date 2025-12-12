@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Shield, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Shield, CheckCircle, Download, Copy, X } from 'lucide-react';
 
 export const UniversitySignUp = () => {
-  const [step, setStep] = useState(1); // 1: Basic Info, 2: Verification
   const [formData, setFormData] = useState({
     // Basic Information
     institutionName: '',
@@ -95,58 +94,44 @@ export const UniversitySignUp = () => {
     }
   };
 
-  const validateStep = (stepNumber) => {
+  const validateForm = () => {
     const newErrors = {};
     
-    if (stepNumber === 1) {
-      // Basic Information Validation
-      if (!formData.institutionName.trim()) newErrors.institutionName = 'Institution name is required';
-      if (!formData.institutionCode.trim()) newErrors.institutionCode = 'Institution code is required';
-      if (!formData.email.trim()) newErrors.email = 'Email is required';
-      if (!formData.email.includes('@')) newErrors.email = 'Valid email is required';
-      if (!formData.website.trim()) newErrors.website = 'Website is required';
-      if (!formData.address.trim()) newErrors.address = 'Address is required';
-      if (!formData.city.trim()) newErrors.city = 'City is required';
-      if (!formData.state) newErrors.state = 'State is required';
-      if (!formData.pincode.trim()) newErrors.pincode = 'Pincode is required';
-      if (!formData.establishedYear.trim()) newErrors.establishedYear = 'Established year is required';
-      if (!formData.institutionType) newErrors.institutionType = 'Institution type is required';
-      
-      // Contact Person Validation
-      if (!formData.contactPersonName.trim()) newErrors.contactPersonName = 'Contact person name is required';
-      if (!formData.contactPersonEmail.trim()) newErrors.contactPersonEmail = 'Contact person email is required';
-      if (!formData.contactPersonPhone.trim()) newErrors.contactPersonPhone = 'Contact person phone is required';
-      if (!formData.contactPersonDesignation.trim()) newErrors.contactPersonDesignation = 'Designation is required';
-      
-      // Password Validation
-      if (!formData.password.trim()) newErrors.password = 'Password is required';
-      if (formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters';
-      if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
-    }
+    // Basic Information Validation
+    if (!formData.institutionName.trim()) newErrors.institutionName = 'Institution name is required';
+    if (!formData.institutionCode.trim()) newErrors.institutionCode = 'Institution code is required';
+    if (!formData.email.trim()) newErrors.email = 'Email is required';
+    if (!formData.email.includes('@')) newErrors.email = 'Valid email is required';
+    if (!formData.website.trim()) newErrors.website = 'Website is required';
+    if (!formData.address.trim()) newErrors.address = 'Address is required';
+    if (!formData.city.trim()) newErrors.city = 'City is required';
+    if (!formData.state) newErrors.state = 'State is required';
+    if (!formData.pincode.trim()) newErrors.pincode = 'Pincode is required';
+    if (!formData.establishedYear.trim()) newErrors.establishedYear = 'Established year is required';
+    if (!formData.institutionType) newErrors.institutionType = 'Institution type is required';
     
-    if (stepNumber === 2) {
-      // Agreement Validation
-      if (!formData.termsAccepted) newErrors.termsAccepted = 'You must accept the terms and conditions';
-      if (!formData.dataProcessingAccepted) newErrors.dataProcessingAccepted = 'You must accept data processing terms';
-    }
+    // Contact Person Validation
+    if (!formData.contactPersonName.trim()) newErrors.contactPersonName = 'Contact person name is required';
+    if (!formData.contactPersonEmail.trim()) newErrors.contactPersonEmail = 'Contact person email is required';
+    if (!formData.contactPersonPhone.trim()) newErrors.contactPersonPhone = 'Contact person phone is required';
+    if (!formData.contactPersonDesignation.trim()) newErrors.contactPersonDesignation = 'Designation is required';
+    
+    // Password Validation
+    if (!formData.password.trim()) newErrors.password = 'Password is required';
+    if (formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters';
+    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
+    
+    // Agreement Validation
+    if (!formData.termsAccepted) newErrors.termsAccepted = 'You must accept the terms and conditions';
+    if (!formData.dataProcessingAccepted) newErrors.dataProcessingAccepted = 'You must accept data processing terms';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleNext = () => {
-    if (validateStep(step)) {
-      setStep(step + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    setStep(step - 1);
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateStep(2)) return;
+    if (!validateForm()) return;
     
     setIsLoading(true);
     
@@ -515,44 +500,9 @@ export const UniversitySignUp = () => {
           </div>
         </div>
       </div>
-    </div>
-  );
-
-  const renderStep2 = () => (
-    <div className="space-y-6">
+      
       <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Review and Confirmation</h3>
-        
-        <div className="bg-gray-50 rounded-lg p-6 mb-6">
-          <h4 className="font-medium text-gray-900 mb-3">Institution Summary</h4>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-gray-500">Institution Name:</span>
-              <span className="ml-2 font-medium">{formData.institutionName}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">Institution Code:</span>
-              <span className="ml-2 font-medium">{formData.institutionCode}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">Type:</span>
-              <span className="ml-2 font-medium">{formData.institutionType}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">Email:</span>
-              <span className="ml-2 font-medium">{formData.email}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">Location:</span>
-              <span className="ml-2 font-medium">{formData.city}, {formData.state}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">Contact Person:</span>
-              <span className="ml-2 font-medium">{formData.contactPersonName}</span>
-            </div>
-          </div>
-        </div>
-        
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Terms and Conditions</h3>
         <div className="space-y-4">
           <div className="flex items-start">
             <div className="flex items-center h-5">
@@ -592,29 +542,13 @@ export const UniversitySignUp = () => {
             </div>
           </div>
         </div>
-        
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
-          <div className="flex">
-            <CheckCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-            <div className="ml-3">
-              <h4 className="text-sm font-medium text-blue-900">What happens next?</h4>
-              <div className="mt-2 text-sm text-blue-700">
-                <ol className="list-decimal list-inside space-y-1">
-                  <li>Your application will be reviewed by our verification team</li>
-                  <li>You'll receive an email confirmation within 24 hours</li>
-                  <li>Document verification process will take 3-5 business days</li>
-                  <li>Once approved, you'll receive login credentials</li>
-                  <li>You can then start issuing verified digital certificates</li>
-                </ol>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {errors.submit && (
-          <div className="text-red-600 text-sm">{errors.submit}</div>
-        )}
       </div>
+      
+      {errors.submit && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-600 text-sm">{errors.submit}</p>
+        </div>
+      )}
     </div>
   );
 
@@ -639,38 +573,6 @@ export const UniversitySignUp = () => {
           </div>
           <h1 className="text-3xl font-extrabold text-gray-900">University Registration</h1>
           <p className="mt-2 text-gray-600">Join the Academic Certificate Verification System</p>
-          
-          {/* Progress Indicator */}
-          <div className="mt-8">
-            <div className="flex items-center justify-center">
-              {[1, 2].map((stepNumber) => (
-                <div key={stepNumber} className="flex items-center">
-                  <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                    step >= stepNumber
-                      ? 'bg-blue-600 border-blue-600 text-white'
-                      : 'border-gray-300 text-gray-500'
-                  }`}>
-                    {step > stepNumber ? (
-                      <CheckCircle className="h-5 w-5" />
-                    ) : (
-                      stepNumber
-                    )}
-                  </div>
-                  {stepNumber < 2 && (
-                    <div className={`w-16 h-0.5 ${
-                      step > stepNumber ? 'bg-blue-600' : 'bg-gray-300'
-                    }`} />
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-center mt-2">
-              <div className="flex space-x-16 text-xs text-gray-500">
-                <span className={step >= 1 ? 'text-blue-600 font-medium' : ''}>Basic Info</span>
-                <span className={step >= 2 ? 'text-blue-600 font-medium' : ''}>Review</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -678,44 +580,106 @@ export const UniversitySignUp = () => {
       <div className="max-w-3xl mx-auto">
         <div className="bg-white py-8 px-6 shadow-xl rounded-lg">
           <form onSubmit={handleSubmit}>
-            {step === 1 && renderStep1()}
-            {step === 2 && renderStep2()}
+            {renderStep1()}
             
-            {/* Navigation Buttons */}
-            <div className="flex justify-between pt-6 mt-6 border-t border-gray-200">
-              {step > 1 ? (
-                <button
-                  type="button"
-                  onClick={handlePrevious}
-                  className="px-6 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Previous
-                </button>
-              ) : (
-                <div />
-              )}
-              
-              {step < 2 ? (
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  className="px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Next
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-                >
-                  {isLoading ? 'Submitting...' : 'Submit Registration'}
-                </button>
-              )}
+            {/* Submit Button */}
+            <div className="flex justify-end pt-6 mt-6 border-t border-gray-200">
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="px-8 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? 'Submitting Registration...' : 'Submit Registration'}
+              </button>
             </div>
           </form>
         </div>
       </div>
+
+      {/* Hash Key Modal */}
+      {showHashModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+          <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6">
+            <div className="absolute top-4 right-4">
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="text-center mb-6">
+              <div className="flex justify-center mb-4">
+                <div className="bg-green-100 p-3 rounded-full">
+                  <CheckCircle className="h-12 w-12 text-green-600" />
+                </div>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">Registration Successful!</h2>
+              <p className="mt-2 text-gray-600">Your institution has been registered successfully.</p>
+            </div>
+
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start">
+                <Shield className="h-5 w-5 text-yellow-600 mt-0.5 mr-3" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-yellow-900">Important - Save Your Hash Key</h3>
+                  <p className="mt-1 text-sm text-yellow-700">
+                    This SHA256 hash key is required for login verification. Please download or copy it and store it securely.
+                    You will need this key along with your email and password to sign in.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Institution Code
+                </label>
+                <div className="bg-gray-50 border border-gray-300 rounded-md p-3">
+                  <code className="text-sm font-mono text-gray-900">{institutionCode}</code>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  SHA256 Hash Key
+                </label>
+                <div className="bg-gray-50 border border-gray-300 rounded-md p-3">
+                  <code className="text-xs font-mono text-gray-900 break-all">{institutionHash}</code>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleDownloadHash}
+                  className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Hash Key
+                </button>
+                <button
+                  onClick={handleCopyHash}
+                  className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy to Clipboard
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <button
+                onClick={handleCloseModal}
+                className="w-full inline-flex items-center justify-center px-4 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              >
+                Continue to Sign In
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

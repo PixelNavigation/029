@@ -16,6 +16,7 @@ export default function SignInInstitution() {
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState('');
   const [keyFileName, setKeyFileName] = useState('');
+  const [extractedHashKey, setExtractedHashKey] = useState('');
   const [demoPrivateKey, setDemoPrivateKey] = useState('');
   const [demoPublicKey, setDemoPublicKey] = useState('');
   const fileInputRef = useRef(null);
@@ -77,6 +78,19 @@ export default function SignInInstitution() {
     reader.onload = async (e) => {
       const text = e.target.result;
       try {
+        // Check if this is a hash key text file from registration
+        if (text.includes('Institution Registration Details') && text.includes('SHA256 Hash Key:')) {
+          // Extract hash key from the downloaded file
+          const hashMatch = text.match(/SHA256 Hash Key:\s*([a-fA-F0-9]+)/);
+          if (hashMatch && hashMatch[1]) {
+            setExtractedHashKey(hashMatch[1]);
+            setKeyFileName(file.name);
+            return;
+          } else {
+            throw new Error('Could not extract hash key from file');
+          }
+        }
+
         // try JSON JWK first
         let parsed;
         try {
@@ -183,14 +197,24 @@ export default function SignInInstitution() {
         throw new Error('Please enter your email before signing in');
       }
 
+      if (!password) {
+        throw new Error('Please enter your password');
+      }
+
+      if (!extractedHashKey) {
+        throw new Error('Please upload your institution hash key file');
+      }
+
       if (!keyFileName && !demoPrivateKey && !localStorage.getItem('acvs_demo_univ_priv')) {
-        throw new Error('Please load your private key from USB/pendrive before signing in');
+        throw new Error('Please load your hash key file from USB/pendrive before signing in');
       }
 
       // Perform sign and verify
       const result = await signAndVerify(email);
       if (!result.verified) throw new Error('Digital signature verification failed');
 
+      // TODO: Backend API call to verify email, password, and extractedHashKey
+      // For now, creating mock user with hash verification
       const mockUser = {
         id: 'univ-1',
         email,
@@ -198,6 +222,7 @@ export default function SignInInstitution() {
         name: 'University Administrator',
         institutionName: email.split('@')[1]?.split('.')[0] || 'University',
         verified: true,
+        hashKey: extractedHashKey,
         createdAt: new Date().toISOString(),
         signatureDemo: { signature: result.signature, message: result.message, publicJwk: result.publicJwk }
       };
@@ -275,31 +300,39 @@ export default function SignInInstitution() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Digital Signature</label>
+              <label className="block text-sm font-medium text-gray-700">Institution Hash Key File</label>
               <div className="mt-1 flex items-center space-x-2">
                 <button 
                   type="button" 
                   onClick={() => fileInputRef.current?.click()} 
-                  className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-gray-50 hover:bg-gray-100"
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
-                  Load from USB / Pendrive
+                  Upload Hash Key File
                 </button>
                 <input 
                   ref={fileInputRef} 
                   type="file" 
-                  accept=".json,.jwk,.pem,.key,text/plain" 
+                  accept=".txt,text/plain" 
                   onChange={(e) => handleKeyFile(e.target.files && e.target.files[0])} 
                   className="hidden" 
                 />
-                {signing && <div className="text-sm text-gray-600">Signing…</div>}
+                {signing && <div className="text-sm text-gray-600">Verifying…</div>}
               </div>
-              {keyFileName && (
-                <div className="mt-2 text-sm text-gray-700">
-                  Loaded key file: <span className="font-medium">{keyFileName}</span>
+              {keyFileName && extractedHashKey && (
+                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                  <div className="flex items-center">
+                    <svg className="h-5 w-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-green-900">Hash key loaded successfully</p>
+                      <p className="text-xs text-green-700 mt-0.5">File: {keyFileName}</p>
+                    </div>
+                  </div>
                 </div>
               )}
               <p className="mt-2 text-xs text-gray-500">
-                Select a private key file from your USB/pendrive (JWK JSON or PEM PKCS#8). The login will proceed automatically after loading the key.
+                Upload the hash key file (.txt) you downloaded during registration from your USB/pendrive.
               </p>
             </div>
 
