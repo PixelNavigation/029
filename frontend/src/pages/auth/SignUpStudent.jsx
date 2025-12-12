@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, Shield } from 'lucide-react';
 import { authAPI } from '../../lib/api';
+import supabase from '../../lib/supabase';
 
 export default function SignUpStudent() {
   const [formData, setFormData] = useState({
@@ -21,6 +22,8 @@ export default function SignUpStudent() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [profileFile, setProfileFile] = useState(null);
+  const [profilePreview, setProfilePreview] = useState(null);
   const [aadharVerified, setAadharVerified] = useState(false);
   const [verifyingAadhar, setVerifyingAadhar] = useState(false);
 
@@ -91,6 +94,30 @@ export default function SignUpStudent() {
     setIsLoading(true);
 
     try {
+      let profilePhotoUrl = '';
+      const BUCKET = import.meta.env.VITE_SUPABASE_BUCKET || 'public-profile-photos';
+
+      // If a profile photo is selected, upload it to Supabase Storage first
+      if (profileFile) {
+        const file = profileFile;
+        const filePath = `profiles/${formData.studentId || Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from(BUCKET)
+          .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+        if (uploadError) {
+          console.error('Supabase upload error', uploadError);
+          throw new Error('Failed to upload profile photo');
+        }
+
+        // Get public URL for uploaded file
+        const { data: urlData, error: urlErr } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
+        if (urlErr) {
+          console.warn('Error getting public URL', urlErr);
+        }
+        profilePhotoUrl = urlData?.publicUrl || '';
+      }
+
       // Call backend API to create student account
       const response = await authAPI.signupStudent({
         email: formData.email,
@@ -102,7 +129,8 @@ export default function SignUpStudent() {
         year: formData.year,
         aadharId: formData.aadharId,
         apaarId: formData.apaarId || '',
-        phone: formData.phone
+        phone: formData.phone,
+        profilePhoto: profilePhotoUrl
       });
       
       if (response.success) {
@@ -126,6 +154,18 @@ export default function SignUpStudent() {
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleProfileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProfileFile(file);
+    try {
+      const url = URL.createObjectURL(file);
+      setProfilePreview(url);
+    } catch (err) {
+      setProfilePreview(null);
     }
   };
 
@@ -177,6 +217,32 @@ export default function SignUpStudent() {
           />
         </div>
       </div>
+
+            {/* Profile Photo (optional) */}
+            <div>
+              <label htmlFor="profilePhoto" className="block text-sm font-medium text-gray-700">
+                Profile Photo (optional)
+              </label>
+              <div className="mt-2 flex items-center space-x-4">
+                <div>
+                  <input
+                    id="profilePhoto"
+                    name="profilePhoto"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleProfileChange}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Recommended: 200x200 px, JPG/PNG</p>
+                </div>
+                {profilePreview && (
+                  <div className="flex items-center space-x-2">
+                    <img src={profilePreview} alt="preview" className="w-14 h-14 rounded-full object-cover border" />
+                    <button type="button" onClick={() => { setProfileFile(null); setProfilePreview(null); }} className="text-xs text-red-600">Remove</button>
+                  </div>
+                )}
+              </div>
+            </div>
 
       {/* Email */}
       <div>

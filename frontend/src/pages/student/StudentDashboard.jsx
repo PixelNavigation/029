@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 import { generateQrCode, downloadQrCode } from '../../utils/qr';
+import { authAPI } from '../../lib/api';
 
 export const StudentDashboard = () => {
   const { user, signOut } = useAuthStore();
@@ -39,6 +40,15 @@ export const StudentDashboard = () => {
     university: user?.university || 'Your University',
     profilePhoto: user?.profilePhoto || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
     socialLinks: user?.socialLinks || {}
+  };
+
+  const [publicProfile, setPublicProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
+  // Merge backend public profile (if present) with local user
+  const displayUser = {
+    ...currentUser,
+    ...(publicProfile || {})
   };
 
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -62,7 +72,7 @@ export const StudentDashboard = () => {
   useEffect(() => {
     const generate = async () => {
       try {
-        const payload = { name: currentUser.name, studentId: currentUser.studentId };
+        const payload = { name: displayUser.name, studentId: displayUser.studentId };
         const dataUrl = await generateQrCode(JSON.stringify(payload), { size: 300 });
         setDummyQrCode(dataUrl);
       } catch (err) {
@@ -70,7 +80,26 @@ export const StudentDashboard = () => {
       }
     };
     generate();
-  }, [currentUser.name, currentUser.studentId]);
+  }, [displayUser.name, displayUser.studentId]);
+
+  // Fetch public profile from backend and merge
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user?.studentId) return;
+      setLoadingProfile(true);
+      try {
+        const res = await authAPI.getPublicProfile(user.studentId);
+        // backend may return { success, profile } or the profile object directly
+        const profileData = res?.profile || res?.data || res;
+        setPublicProfile(profileData || null);
+      } catch (err) {
+        console.warn('Failed to fetch public profile', err);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+    fetchProfile();
+  }, [user?.studentId]);
   const onDrop = (acceptedFiles) => {
     const files = acceptedFiles.map((file) => ({
       id: Math.random().toString(36).slice(2, 9),
@@ -188,12 +217,12 @@ export const StudentDashboard = () => {
         type: 'DOCUMENT_VERIFICATION',
         version: '1.0',
         studentInfo: {
-          id: currentUser.studentId,
-          name: currentUser.name,
-          email: currentUser.email,
-          university: currentUser.university,
-          course: currentUser.course,
-          year: currentUser.year
+          id: displayUser.studentId,
+          name: displayUser.name,
+          email: displayUser.email,
+          university: displayUser.university,
+          course: displayUser.course,
+          year: displayUser.year
         },
         verification: {
           total: submittedDocuments.length,
@@ -239,12 +268,12 @@ export const StudentDashboard = () => {
         type: 'DOCUMENT_VERIFICATION',
         version: '1.0',
         studentInfo: {
-          id: currentUser.studentId,
-          name: currentUser.name,
-          email: currentUser.email,
-          university: currentUser.university,
-          course: currentUser.course,
-          year: currentUser.year
+          id: displayUser.studentId,
+          name: displayUser.name,
+          email: displayUser.email,
+          university: displayUser.university,
+          course: displayUser.course,
+          year: displayUser.year
         },
         verification: {
           total: submittedDocuments.length,
@@ -269,7 +298,7 @@ export const StudentDashboard = () => {
 
       await downloadQrCode(
         qrPayload,
-        `${currentUser.name.replace(/\s+/g, '_')}_verified_documents.png`,
+        `${(displayUser.name || 'student').replace(/\s+/g, '_')}_verified_documents.png`,
         { size: 400 }
       );
     } catch (error) {

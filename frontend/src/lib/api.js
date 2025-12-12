@@ -18,4 +18,11 @@ export const authAPI = {
     });
     return response.data;
   }
+,
+
+  // Fetch public profile by studentId
+  getPublicProfile: async (studentId) => {
+    const response = await axios.get(`${API_URL}/api/public_profiles/${encodeURIComponent(studentId)}`);
+    return response.data;
+  }
 };
