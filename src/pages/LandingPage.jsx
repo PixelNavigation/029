@@ -225,10 +225,25 @@ export const LandingPage = () => {
               <h2 className="text-3xl font-bold text-gray-900 mb-4">
                 Verify Your Certificate
               </h2>
-              <p className="text-gray-600 max-w-2xl mx-auto">
+              <p className="text-gray-600 max-w-2xl mx-auto mb-6">
                 Upload your academic documents for instant verification. Our AI-powered system will process 
                 your certificates and generate a comprehensive verification report with blockchain authentication.
               </p>
+              
+              {/* Institution Type Dropdown */}
+              <div className="max-w-md mx-auto">
+                <label htmlFor="verification-institution-type" className="block text-sm font-medium text-gray-700 mb-2 text-left">
+                  Select Institution Type
+                </label>
+                <select 
+                  id="verification-institution-type" 
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                >
+                  <option value="school">School</option>
+                  <option value="college">College</option>
+                  <option value="university">University</option>
+                </select>
+              </div>
             </div>
             
             {isProcessing ? (
