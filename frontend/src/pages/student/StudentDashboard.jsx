@@ -81,6 +81,14 @@ export const StudentDashboard = () => {
     }));
     setUploadedFiles((s) => [...s, ...files]);
   };
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    multiple: true,
+    accept: {
+      'application/pdf': ['.pdf'],
+      'image/*': ['.jpeg', '.jpg', '.png']
+    }
+  });
   const removeFile = (fileId) => {
     setUploadedFiles((prev) => prev.filter((f) => f.id !== fileId));
   };
