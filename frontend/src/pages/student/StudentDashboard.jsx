@@ -62,23 +62,6 @@ export const StudentDashboard = () => {
     documentType: ''
   });
 
-  // Document verification status mapping for Shashank Vardhan Reddy
-  const documentVerificationStatus = {
-    // File name patterns based on uploaded documents
-    'ssc': 'verified', // SSC Memo_shash.pdf (10th class)
-    'inter': 'verified', // Inter Short Memo_shash.pdf (12th class)  
-    'sem all': 'verified', // SEM ALL shash.pdf (semester records - 1st to 4th)
-    'math competition': 'unable-to-verify', // MATH competition GNITS Participation
-    // Additional mappings
-    '10th': 'verified',
-    '12th': 'verified', 
-    'semester': 'verified', // Default for semester documents
-    '5th semester': 'semi-verified',
-    'academic transcript': 'verified',
-    'identity proof': 'verified',
-    'address proof': 'verified'
-  };
-
   const [submittedDocuments, setSubmittedDocuments] = useState([]);
   const [showVerificationResults, setShowVerificationResults] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState(null);
@@ -101,32 +84,6 @@ export const StudentDashboard = () => {
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [showQrModal, isFullscreen]);
-
-  // Generate dummy QR code for demonstration
-  useEffect(() => {
-    const generateDummyQR = async () => {
-      try {
-        const dummyData = {
-          type: 'DOCUMENT_VERIFICATION',
-          version: '1.0',
-          studentInfo: {
-            id: 'STU-2025-001',
-            name: 'Sample Student',
-            email: 'sample.student@university.edu',
-            university: 'Sample University',
-            course: 'Computer Science',
-            year: '3rd Year'
-          },
-          verification: {
-            total: 2,
-            verified: 2,
-            verifiedDocuments: [
-              { name: 'Academic Transcript.pdf', type: 'Academic Records', status: 'VERIFIED' },
-              { name: 'ID Proof.jpg', type: 'Identity Proof', status: 'VERIFIED' }
-            ]
-          },
-          issuedAt: new Date().toISOString()
-        };
         
         const qrDataUrl = await generateQrCode(dummyData, { size: 400, margin: 1 });
         setDummyQrCode(qrDataUrl);
@@ -264,39 +221,6 @@ export const StudentDashboard = () => {
     
     return 'verified';
   };
-
-  // Debug function to test with screenshot file names
-  const testVerificationWithScreenshotFiles = () => {
-    const testFiles = [
-      { 
-        id: 'test1', 
-        name: 'SEM ALL shash.pdf', 
-        size: 583350,
-        type: 'application/pdf',
-        uploadedAt: new Date().toISOString()
-      },
-      { 
-        id: 'test2', 
-        name: 'SSC Memo_shash.pdf', 
-        size: 139350,
-        type: 'application/pdf',
-        uploadedAt: new Date().toISOString()
-      },
-      { 
-        id: 'test3', 
-        name: 'Inter Short Memo_shash.pdf', 
-        size: 101040,
-        type: 'application/pdf',
-        uploadedAt: new Date().toISOString()
-      },
-      { 
-        id: 'test4', 
-        name: 'MATH competition GNITS Participation Certificates_shash.pdf', 
-        size: 311610,
-        type: 'application/pdf',
-        uploadedAt: new Date().toISOString()
-      }
-    ];
     
     // Create submitted documents with verification status
     const submittedTestDocs = testFiles.map(file => ({

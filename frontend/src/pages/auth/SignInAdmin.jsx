@@ -28,16 +28,9 @@ export default function SignInAdmin() {
     setError('');
     try {
       if (!email || !password) throw new Error('Please enter both email and password');
-      const mockUser = {
-        id: 'admin-1',
-        email,
-        role: 'admin',
-        name: 'Central Administrator',
-        verified: true,
-        createdAt: new Date().toISOString(),
-      };
-      const { setUser } = useAuthStore.getState();
-      setUser(mockUser);
+      
+      // TODO: Implement actual admin authentication API
+      setError('Admin authentication not yet implemented. Please contact system administrator.');
     } catch (err) {
       setError(err.message || 'Signin failed');
     } finally {

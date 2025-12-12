@@ -135,49 +135,18 @@ export const UniversityDashboard = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Mock OCR processing function
-  const performOCR = async (file) => {
-    // Simulate OCR processing delay
-    await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
-    
-    // Mock extracted data based on file type
-    const mockData = {
-      studentInfo: {
-        fullName: `John Doe ${Math.floor(Math.random() * 1000)}`,
-        studentId: `STU${Math.floor(Math.random() * 100000)}`,
-        email: `student${Math.floor(Math.random() * 1000)}@university.edu`,
-        rollNumber: `20${Math.floor(Math.random() * 10)}${Math.floor(Math.random() * 1000)}`
-      },
-      academicInfo: {
-        course: ['B.Tech', 'M.Tech', 'MBA', 'B.Sc', 'M.Sc'][Math.floor(Math.random() * 5)],
-        specialization: ['Computer Science', 'Electronics', 'Mechanical', 'Civil'][Math.floor(Math.random() * 4)],
-        yearOfCompletion: 2020 + Math.floor(Math.random() * 5),
-        cgpa: (7 + Math.random() * 3).toFixed(2),
-        grade: ['A+', 'A', 'B+', 'B'][Math.floor(Math.random() * 4)]
-      },
-      certificateInfo: {
-        certificateType: ['Degree Certificate', 'Mark Sheet', 'Provisional Certificate'][Math.floor(Math.random() * 3)],
-        certificateNumber: `CERT${Math.floor(Math.random() * 1000000)}`,
-        issueDate: new Date(2024, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toISOString().split('T')[0],
-        verificationCode: Math.random().toString(36).substring(2, 15).toUpperCase()
-      },
-      confidence: Math.floor(85 + Math.random() * 15) // 85-100% confidence
-    };
-    
-    return mockData;
-  };
-
   // Process certificates with OCR
   const processCertificates = async (files) => {
     setIsProcessing(true);
     setProcessingProgress(0);
     
-    const processed = [];
+    // TODO: Implement actual OCR processing API
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      
-      // Update file status to processing
+    setIsProcessing(false);
+    setProcessingProgress(0);
+    alert('OCR processing system not yet implemented.');
+  };
       setUploadedFiles(prev => 
         prev.map(f => f.id === file.id ? { ...f, status: 'processing' } : f)
       );
@@ -222,61 +191,24 @@ export const UniversityDashboard = () => {
     }
   };
 
-  // Mock database connection
+  // Database connection
   const connectToDatabase = async () => {
     setConnectionStatus('connecting');
     
-    // Simulate connection delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Mock connection success
-    setConnectionStatus('connected');
-    
-    // Mock fetch data from database
-    setTimeout(() => {
-      const mockDBData = Array.from({ length: 5 }, (_, i) => ({
-        id: `db_${i}`,
-        fileName: `Database Record ${i + 1}`,
-        extractedData: {
-          studentInfo: {
-            fullName: `Database Student ${i + 1}`,
-            studentId: `DB${1000 + i}`,
-            email: `dbstudent${i + 1}@university.edu`,
-            rollNumber: `2024${1000 + i}`
-          },
-          academicInfo: {
-            course: 'B.Tech',
-            specialization: 'Computer Science',
-            yearOfCompletion: 2024,
-            cgpa: (8 + Math.random()).toFixed(2),
-            grade: 'A'
-          },
-          certificateInfo: {
-            certificateType: 'Degree Certificate',
-            certificateNumber: `DB_CERT_${1000 + i}`,
-            issueDate: '2024-06-15',
-            verificationCode: `DBVER${1000 + i}`
-          },
-          confidence: 95
-        },
-        processedAt: new Date().toISOString(),
-        status: 'processed',
-        source: 'database'
-      }));
-      
-      setProcessedCertificates(prev => [...prev, ...mockDBData]);
-      setPreviewData(mockDBData);
-      setShowPreview(true);
-    }, 1000);
+    // TODO: Implement actual database connection
+    setConnectionStatus('disconnected');
+    alert('Database connection not yet implemented.');
   };
 
   const disconnectDatabase = () => {
     setConnectionStatus('disconnected');
   };
 
-  // Mock blockchain and encryption functions
+  // Encryption functions
   const encryptData = async (data) => {
-    // Simulate encryption process
+    // TODO: Implement actual encryption
     await new Promise(resolve => setTimeout(resolve, 1000));
     return {
       encryptedData: btoa(JSON.stringify(data)), // Base64 encoding as mock encryption
