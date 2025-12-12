@@ -153,6 +153,80 @@ def signup():
         return jsonify({"error": f"Registration failed: {str(e)}"}), 500
 
 
+@app.route("/api/upload-profile-photo", methods=["POST"])
+def upload_profile_photo():
+    """Upload profile photo to Supabase Storage"""
+    if not supabase:
+        return jsonify({"error": "Database not configured"}), 503
+
+    if 'photo' not in request.files:
+        return jsonify({"error": "No photo file provided"}), 400
+
+    file = request.files['photo']
+    student_id = request.form.get('studentId')
+
+    if not student_id:
+        return jsonify({"error": "Student ID is required"}), 400
+
+    if file.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+
+    if file and allowed_file(file.filename):
+        try:
+            # Generate unique filename
+            file_ext = file.filename.rsplit('.', 1)[1].lower()
+            unique_filename = f"profile_photos/{student_id}_{uuid.uuid4().hex}.{file_ext}"
+            
+            # Read file content
+            file_content = file.read()
+            
+            # Upload to Supabase Storage using correct Python API
+            try:
+                # The Python Supabase library expects bytes and path
+                storage = supabase.storage.from_('student-profiles')
+                
+                # Upload file
+                res = storage.upload(
+                    path=unique_filename,
+                    file=file_content,
+                    file_options={"content-type": f"image/{file_ext}"}
+                )
+                
+                print(f"Upload successful: {unique_filename}")
+                
+            except Exception as upload_err:
+                print(f"Supabase upload error: {str(upload_err)}")
+                print(f"Error type: {type(upload_err).__name__}")
+                import traceback
+                traceback.print_exc()
+                
+                # Try alternative upload method
+                try:
+                    res = storage.upload(path=unique_filename, file=file_content)
+                    print("Upload succeeded with basic method")
+                except Exception as retry_err:
+                    print(f"Retry also failed: {str(retry_err)}")
+                    raise
+            
+            # Get public URL
+            public_url = supabase.storage.from_('student-profiles').get_public_url(unique_filename)
+            print(f"Public URL: {public_url}")
+            
+            return jsonify({
+                "success": True,
+                "url": public_url
+            }), 200
+
+        except Exception as e:
+            print(f"Upload error: {str(e)}")
+            print(f"Error type: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": f"Failed to upload photo: {str(e)}"}), 500
+    
+    return jsonify({"error": "Invalid file type"}), 400
+
+
 @app.route("/api/auth/signin", methods=["POST"])
 def signin():
     """Handle student signin - authenticates user"""
@@ -209,6 +283,117 @@ def signin():
     except Exception as e:
         print(f"Signin error: {str(e)}")
         return jsonify({"error": f"Login failed: {str(e)}"}), 500
+
+
+@app.route("/api/student/upload-certificate", methods=["POST"])
+def upload_student_certificate():
+    """Upload student certificate to Supabase Storage"""
+    if not supabase:
+        return jsonify({"error": "Database not configured"}), 503
+
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files['file']
+    student_id = request.form.get('studentId')
+    document_type = request.form.get('documentType', 'certificate')
+
+    if not student_id:
+        return jsonify({"error": "Student ID is required"}), 400
+
+    if file.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+
+    if file and allowed_file(file.filename):
+        try:
+            # Generate unique filename
+            file_ext = file.filename.rsplit('.', 1)[1].lower()
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            unique_filename = f"certificates/{student_id}/{document_type}_{timestamp}_{uuid.uuid4().hex}.{file_ext}"
+            
+            # Read file content
+            file_content = file.read()
+            
+            # Upload to Supabase Storage using correct Python API
+            try:
+                storage = supabase.storage.from_('student-profiles')
+                
+                content_type = f'application/{file_ext}' if file_ext == 'pdf' else f'image/{file_ext}'
+                res = storage.upload(
+                    path=unique_filename,
+                    file=file_content,
+                    file_options={"content-type": content_type}
+                )
+                
+                print(f"Certificate upload successful: {unique_filename}")
+                
+            except Exception as upload_err:
+                print(f"Supabase certificate upload error: {str(upload_err)}")
+                import traceback
+                traceback.print_exc()
+                
+                # Try without options
+                try:
+                    res = storage.upload(path=unique_filename, file=file_content)
+                    print("Certificate upload succeeded with basic method")
+                except Exception as retry_err:
+                    print(f"Certificate retry failed: {str(retry_err)}")
+                    raise
+            
+            # Get public URL
+            public_url = supabase.storage.from_('student-profiles').get_public_url(unique_filename)
+            
+            # Store certificate metadata in database
+            certificate_data = {
+                'student_id': student_id,
+                'document_type': document_type,
+                'file_name': file.filename,
+                'file_url': public_url,
+                'file_size': len(file_content),
+                'uploaded_at': datetime.utcnow().isoformat(),
+                'verification_status': 'pending'
+            }
+            
+            # Insert into certificates table
+            try:
+                cert_result = supabase.table('certificates').insert(certificate_data).execute()
+                certificate_id = cert_result.data[0]['id'] if cert_result.data else None
+            except Exception as db_err:
+                print(f"Database insert error: {str(db_err)}")
+                # Continue even if database insert fails - at least file is uploaded
+                certificate_id = None
+            
+            return jsonify({
+                "success": True,
+                "url": public_url,
+                "certificateId": certificate_id,
+                "fileName": file.filename
+            }), 200
+
+        except Exception as e:
+            print(f"Upload error: {str(e)}")
+            return jsonify({"error": f"Failed to upload certificate: {str(e)}"}), 500
+    
+    return jsonify({"error": "Invalid file type"}), 400
+
+
+@app.route("/api/student/certificates/<student_id>", methods=["GET"])
+def get_student_certificates(student_id):
+    """Get all certificates for a student"""
+    if not supabase:
+        return jsonify({"error": "Database not configured"}), 503
+
+    try:
+        result = supabase.table('certificates').select('*').eq('student_id', student_id).execute()
+        
+        return jsonify({
+            "success": True,
+            "certificates": result.data
+        }), 200
+
+    except Exception as e:
+        print(f"Fetch error: {str(e)}")
+        return jsonify({"error": f"Failed to fetch certificates: {str(e)}"}), 500
 
 
 @app.route("/api/institution/upload-certificates", methods=["POST"])

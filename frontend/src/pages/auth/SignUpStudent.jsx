@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, Shield } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, Shield, Camera } from 'lucide-react';
 import { authAPI } from '../../lib/api';
 
 export default function SignUpStudent() {
@@ -14,7 +14,6 @@ export default function SignUpStudent() {
     course: '',
     year: '',
     aadharId: '',
-    apaarId: '', // Optional
     phone: ''
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -25,6 +24,11 @@ export default function SignUpStudent() {
   const [profilePreview, setProfilePreview] = useState(null);
   const [aadharVerified, setAadharVerified] = useState(false);
   const [verifyingAadhar, setVerifyingAadhar] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [showCameraPermission, setShowCameraPermission] = useState(false);
+  const [stream, setStream] = useState(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
   const navigate = useNavigate();
 
@@ -95,6 +99,20 @@ export default function SignUpStudent() {
     try {
       let profilePhotoUrl = '';
 
+      // Upload profile photo if exists
+      if (profileFile) {
+        try {
+          const uploadResponse = await authAPI.uploadProfilePhoto(profileFile, formData.studentId);
+          if (uploadResponse.success) {
+            profilePhotoUrl = uploadResponse.url;
+          }
+        } catch (uploadErr) {
+          console.error('Photo upload error:', uploadErr);
+          // Continue with signup even if photo upload fails
+          setError('Warning: Profile photo upload failed, but continuing with registration...');
+        }
+      }
+
       // Call backend API to create student account
       const response = await authAPI.signupStudent({
         email: formData.email,
@@ -105,7 +123,6 @@ export default function SignUpStudent() {
         course: formData.course,
         year: formData.year,
         aadharId: formData.aadharId,
-        apaarId: formData.apaarId || '',
         phone: formData.phone,
         profilePhoto: profilePhotoUrl
       });
@@ -144,6 +161,125 @@ export default function SignUpStudent() {
     } catch (err) {
       setProfilePreview(null);
     }
+  };
+
+  const openCamera = async () => {
+    setError(''); // Clear any previous errors
+    
+    // Check if getUserMedia is supported
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setError('Camera access is not supported in this browser. Please use a modern browser.');
+      return;
+    }
+    
+    try {
+      // For Brave browser, we need to request permission directly without testing first
+      // Show our custom dialog which will handle the actual camera access
+      setShowCameraPermission(true);
+    } catch (err) {
+      console.error('Camera permission error:', err);
+      setError('Unable to access camera. Please check permissions and try again.');
+    }
+  };
+
+  const handleCameraPermission = async (allowed) => {
+    setShowCameraPermission(false);
+    
+    if (!allowed) {
+      return;
+    }
+
+    setError(''); // Clear any previous errors
+    
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }, 
+        audio: false 
+      });
+      
+      setStream(mediaStream);
+      setShowCamera(true);
+      
+      // Use a promise to ensure the modal is rendered before setting video source
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        // Explicitly play the video
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.error('Video play error:', playErr);
+        }
+      }
+    } catch (err) {
+      setShowCamera(false);
+      if (err.name === 'NotAllowedError') {
+        setError('Camera access denied. Please allow camera access in your browser settings.');
+      } else if (err.name === 'NotFoundError') {
+        setError('No camera found on this device.');
+      } else {
+        setError('Unable to access camera. Please check permissions and try again.');
+      }
+      console.error('Camera error:', err);
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) {
+      setError('Camera not ready. Please wait a moment and try again.');
+      return;
+    }
+    
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    // Check if video has dimensions (is actually playing)
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setError('Camera is loading. Please wait a moment and try again.');
+      return;
+    }
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      setError('Unable to capture photo. Please try again.');
+      return;
+    }
+    
+    // Draw the video frame to canvas
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Convert canvas to blob
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
+        const previewUrl = URL.createObjectURL(blob);
+        
+        setProfileFile(file);
+        setProfilePreview(previewUrl);
+        closeCamera();
+        
+        // Show success feedback
+        setError('');
+      } else {
+        setError('Failed to capture photo. Please try again.');
+      }
+    }, 'image/jpeg', 0.95);
+  };
+
+  const closeCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setShowCamera(false);
   };
 
   return (
@@ -195,31 +331,170 @@ export default function SignUpStudent() {
         </div>
       </div>
 
-            {/* Profile Photo (optional) */}
+            {/* Profile Photo */}
             <div>
-              <label htmlFor="profilePhoto" className="block text-sm font-medium text-gray-700">
-                Profile Photo (optional)
+              <label htmlFor="profilePhoto" className="block text-sm font-medium text-gray-700 mb-2">
+                Profile Photo
               </label>
-              <div className="mt-2 flex items-center space-x-4">
-                <div>
-                  <input
-                    id="profilePhoto"
-                    name="profilePhoto"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleProfileChange}
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Recommended: 200x200 px, JPG/PNG</p>
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1">
+                    <input
+                      id="profilePhoto"
+                      name="profilePhoto"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfileChange}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openCamera}
+                    className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap"
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    Take a Photo
+                  </button>
                 </div>
                 {profilePreview && (
-                  <div className="flex items-center space-x-2">
-                    <img src={profilePreview} alt="preview" className="w-14 h-14 rounded-full object-cover border" />
-                    <button type="button" onClick={() => { setProfileFile(null); setProfilePreview(null); }} className="text-xs text-red-600">Remove</button>
+                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-md">
+                    <img src={profilePreview} alt="preview" className="w-16 h-16 rounded-full object-cover border-2 border-gray-300" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-700">Photo selected</p>
+                      <p className="text-xs text-gray-500">Ready to upload</p>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => { setProfileFile(null); setProfilePreview(null); }} 
+                      className="px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
+                    >
+                      Remove
+                    </button>
                   </div>
                 )}
+                <p className="text-xs text-gray-500">Recommended: 200x200 px, JPG/PNG format</p>
               </div>
             </div>
+
+            {/* Camera Permission Dialog */}
+            {showCameraPermission && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+                  <div className="flex items-center mb-4">
+                    <div className="bg-blue-100 p-2 rounded-full mr-3">
+                      <Camera className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Camera Access Required</h3>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    This application needs access to your camera to take a profile photo.
+                  </p>
+                  <p className="text-xs text-gray-500 mb-6">
+                    When you click "Allow", your browser will ask for camera permission. Please allow it to continue.
+                  </p>
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => handleCameraPermission(false)}
+                      className="px-5 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCameraPermission(true)}
+                      className="px-5 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      Allow Camera
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Camera Modal */}
+            {showCamera && (
+              <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg p-6 max-w-3xl w-full">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">Take Your Photo</h3>
+                    <p className="text-sm text-gray-500">Align your face within the oval</p>
+                  </div>
+                  <div className="relative bg-black rounded-lg overflow-hidden">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-auto rounded-lg"
+                      style={{ maxHeight: '60vh' }}
+                    />
+                    {/* Face alignment overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="relative">
+                        {/* Face oval guide */}
+                        <svg width="280" height="360" viewBox="0 0 280 360" className="drop-shadow-lg">
+                          {/* Outer oval */}
+                          <ellipse
+                            cx="140"
+                            cy="180"
+                            rx="130"
+                            ry="170"
+                            fill="none"
+                            stroke="white"
+                            strokeWidth="3"
+                            strokeDasharray="10,5"
+                            opacity="0.8"
+                          />
+                          {/* Inner oval */}
+                          <ellipse
+                            cx="140"
+                            cy="180"
+                            rx="125"
+                            ry="165"
+                            fill="none"
+                            stroke="rgba(59, 130, 246, 0.6)"
+                            strokeWidth="2"
+                          />
+                          {/* Alignment guides */}
+                          <line x1="140" y1="10" x2="140" y2="30" stroke="white" strokeWidth="2" opacity="0.6" />
+                          <line x1="140" y1="330" x2="140" y2="350" stroke="white" strokeWidth="2" opacity="0.6" />
+                          <line x1="10" y1="180" x2="30" y2="180" stroke="white" strokeWidth="2" opacity="0.6" />
+                          <line x1="250" y1="180" x2="270" y2="180" stroke="white" strokeWidth="2" opacity="0.6" />
+                        </svg>
+                        <p className="text-white text-xs text-center mt-2 font-medium drop-shadow-md">
+                          Position your face here
+                        </p>
+                      </div>
+                    </div>
+                    <canvas ref={canvasRef} className="hidden" />
+                  </div>
+                  <div className="mt-4 flex justify-between items-center">
+                    <p className="text-xs text-gray-500">
+                      <Camera className="inline h-4 w-4 mr-1" />
+                      Camera is active • Align face in oval
+                    </p>
+                    <div className="flex space-x-3">
+                      <button
+                        type="button"
+                        onClick={closeCamera}
+                        className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={capturePhoto}
+                        className="px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        📸 Capture Photo
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
       {/* Email */}
       <div>
@@ -421,25 +696,6 @@ export default function SignUpStudent() {
             Aadhar verified successfully
           </p>
         )}
-      </div>
-
-      {/* APAAR ID (Optional) */}
-      <div>
-        <label htmlFor="apaarId" className="block text-sm font-medium text-gray-700">
-          APAAR ID
-          <span className="text-xs text-gray-500 ml-1">(Optional - Academic Bank of Credits)</span>
-        </label>
-        <div className="mt-1">
-          <input
-            id="apaarId"
-            name="apaarId"
-            type="text"
-            value={formData.apaarId}
-            onChange={handleChange}
-            placeholder="Enter your APAAR ID (if available)"
-            className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-          />
-        </div>
       </div>
 
       {/* Phone Number */}

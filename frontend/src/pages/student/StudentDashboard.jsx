@@ -53,6 +53,8 @@ export const StudentDashboard = () => {
 
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [submittedDocuments, setSubmittedDocuments] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({});
   const [dummyQrCode, setDummyQrCode] = useState(null);
   const [showQrModal, setShowQrModal] = useState(false);
   const [generatingQr, setGeneratingQr] = useState(false);
@@ -168,39 +170,67 @@ export const StudentDashboard = () => {
     return 'verified';
   };
 
-  const handleSubmitDocuments = () => {
+  const handleSubmitDocuments = async () => {
     if (uploadedFiles.length === 0) {
       alert('Please upload at least one document before submitting.');
       return;
     }
 
-    const processedDocuments = uploadedFiles.map((file) => {
-      const verificationStatus = getDocumentVerificationStatus(file.name, submissionData.documentType);
-      return {
-        ...file,
-        documentType: submissionData.documentType || 'Academic Records',
-        verificationStatus,
-        submittedAt: new Date().toISOString(),
-        verificationId: Math.random().toString(36).substring(2, 10).toUpperCase()
-      };
-    });
+    setIsUploading(true);
+    const uploadResults = [];
 
-    setSubmittedDocuments((prev) => [...prev, ...processedDocuments]);
-    setShowVerificationResults(true);
+    try {
+      for (const file of uploadedFiles) {
+        try {
+          setUploadProgress(prev => ({ ...prev, [file.id]: 'uploading' }));
+          
+          const response = await authAPI.uploadCertificate(
+            file.file,
+            user.studentId,
+            submissionData.documentType || 'certificate'
+          );
 
-    const verifiedCount = processedDocuments.filter((d) => d.verificationStatus === 'verified').length;
-    const semiVerifiedCount = processedDocuments.filter((d) => d.verificationStatus === 'semi-verified').length;
-    const unableToVerifyCount = processedDocuments.filter((d) => d.verificationStatus === 'unable-to-verify').length;
+          if (response.success) {
+            uploadResults.push({
+              id: response.certificateId,
+              name: file.name,
+              documentType: submissionData.documentType || 'Academic Records',
+              url: response.url,
+              size: file.size,
+              submittedAt: new Date().toISOString(),
+              verificationStatus: 'pending',
+              verificationId: response.certificateId
+            });
+            setUploadProgress(prev => ({ ...prev, [file.id]: 'success' }));
+          }
+        } catch (err) {
+          console.error(`Failed to upload ${file.name}:`, err);
+          setUploadProgress(prev => ({ ...prev, [file.id]: 'failed' }));
+        }
+      }
 
-    alert(
-      `Documents submitted successfully!\n\n` +
-        `✅ Verified: ${verifiedCount}\n` +
-        `⚠️ Semi-Verified: ${semiVerifiedCount}\n` +
-        `❌ Unable to Verify: ${unableToVerifyCount}`
-    );
+      if (uploadResults.length > 0) {
+        setSubmittedDocuments((prev) => [...prev, ...uploadResults]);
+        setShowVerificationResults(true);
 
-    setUploadedFiles([]);
-    setSubmissionData({ documentType: '' });
+        alert(
+          `Documents submitted successfully!\n\n` +
+          `✅ Uploaded: ${uploadResults.length}\n` +
+          `⏳ Verification Status: Pending`
+        );
+
+        setUploadedFiles([]);
+        setSubmissionData({ documentType: '' });
+        setUploadProgress({});
+      } else {
+        alert('Failed to upload documents. Please try again.');
+      }
+    } catch (err) {
+      console.error('Upload error:', err);
+      alert('Error uploading documents. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const generateStudentQrCode = async () => {
@@ -825,18 +855,20 @@ export const StudentDashboard = () => {
                 <div className="space-y-3">
                   <button 
                     onClick={handleSubmitDocuments}
-                    disabled={uploadedFiles.length === 0}
+                    disabled={uploadedFiles.length === 0 || isUploading}
                     className={`w-full flex items-center justify-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-                      uploadedFiles.length > 0
+                      uploadedFiles.length > 0 && !isUploading
                         ? 'bg-green-600 text-white hover:bg-green-700'
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     }`}
                   >
                     <Send className="h-5 w-5" />
-                    <span>Submit Documents for Verification ({uploadedFiles.length})</span>
+                    <span>
+                      {isUploading ? 'Uploading to Storage...' : `Submit Documents for Verification (${uploadedFiles.length})`}
+                    </span>
                   </button>
                   
-                  {uploadedFiles.length === 0 && (
+                  {uploadedFiles.length === 0 && !isUploading && (
                     <p className="text-xs text-gray-500 text-center mt-2">
                       Please upload documents to submit for verification
                     </p>
