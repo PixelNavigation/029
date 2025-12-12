@@ -238,10 +238,7 @@ export const UniversityDashboard = () => {
             
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-700">
-                Welcome, <span className="font-medium">{user?.name}</span>
-                {user?.institutionName && (
-                  <span className="text-gray-500 ml-2">({user.institutionName})</span>
-                )}
+                Welcome, <span className="font-medium">{user?.institutionName}</span>
               </div>
               <button
                 onClick={signOut}
