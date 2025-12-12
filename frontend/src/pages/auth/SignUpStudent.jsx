@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, Shield } from 'lucide-react';
 import { authAPI } from '../../lib/api';
-import supabase from '../../lib/supabase';
 
 export default function SignUpStudent() {
   const [formData, setFormData] = useState({
@@ -95,28 +94,6 @@ export default function SignUpStudent() {
 
     try {
       let profilePhotoUrl = '';
-      const BUCKET = import.meta.env.VITE_SUPABASE_BUCKET || 'public-profile-photos';
-
-      // If a profile photo is selected, upload it to Supabase Storage first
-      if (profileFile) {
-        const file = profileFile;
-        const filePath = `profiles/${formData.studentId || Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from(BUCKET)
-          .upload(filePath, file, { cacheControl: '3600', upsert: false });
-
-        if (uploadError) {
-          console.error('Supabase upload error', uploadError);
-          throw new Error('Failed to upload profile photo');
-        }
-
-        // Get public URL for uploaded file
-        const { data: urlData, error: urlErr } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
-        if (urlErr) {
-          console.warn('Error getting public URL', urlErr);
-        }
-        profilePhotoUrl = urlData?.publicUrl || '';
-      }
 
       // Call backend API to create student account
       const response = await authAPI.signupStudent({
