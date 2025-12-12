@@ -77,5 +77,71 @@ def login():
     return jsonify({'user': mock_user}), 200
 
 
+@app.route("/signup", methods=["POST"])
+def signup():
+    data = request.get_json() or {}
+    # expected fields: name, email, password, studentId, university, course, year, aadharId, apaarId, phone
+    name = data.get('name')
+    email = data.get('email')
+    password = data.get('password')
+    studentId = data.get('studentId')
+    university = data.get('university')
+    course = data.get('course')
+    year = data.get('year')
+    aadharId = data.get('aadharId')
+    apaarId = data.get('apaarId')
+    phone = data.get('phone')
+
+    if not email or not name:
+        return jsonify({'error': 'name and email required'}), 400
+
+    # If Supabase is configured, insert into profiles table
+    if supabase:
+        try:
+            payload = {
+                'name': name,
+                'email': email,
+                'password': password,
+                'student_id': studentId,
+                'university': university,
+                'course': course,
+                'year': year,
+                'aadhar_id': aadharId,
+                'apaar_id': apaarId,
+                'phone': phone,
+                'role': 'student'
+            }
+            resp = supabase.table('profiles').insert(payload).select('*').execute()
+            created = resp.data[0] if resp.data and len(resp.data) > 0 else None
+            if created:
+                user = {
+                    'id': created.get('id') or created.get('email'),
+                    'email': created.get('email'),
+                    'role': created.get('role') or 'student',
+                    'name': created.get('name') or name,
+                    'profile': created
+                }
+                return jsonify({'user': user}), 201
+            return jsonify({'error': 'failed to create profile'}), 500
+        except Exception as exc:
+            return jsonify({'error': str(exc)}), 500
+
+    # Fallback: mock user creation
+    mock_user = {
+        'id': f"mock-student-{int(__import__('time').time())}",
+        'email': email,
+        'role': 'student',
+        'name': name,
+        'studentId': studentId,
+        'university': university,
+        'course': course,
+        'year': year,
+        'aadharId': aadharId,
+        'apaarId': apaarId,
+        'phone': phone
+    }
+    return jsonify({'user': mock_user}), 201
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

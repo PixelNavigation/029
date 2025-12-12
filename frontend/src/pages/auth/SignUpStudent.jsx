@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth';
+import { postSignup } from '../../lib/api';
 import { Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, Shield } from 'lucide-react';
 
 export default function SignUpStudent() {
@@ -91,36 +92,29 @@ export default function SignUpStudent() {
     setIsLoading(true);
 
     try {
-      // Mock registration - in real implementation, this would call actual API
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const newUser = {
-        id: `student-${Date.now()}`,
-        email: formData.email,
-        role: 'student',
+      // Call backend signup (uses Supabase when configured)
+      const payload = {
         name: formData.name,
+        email: formData.email,
+        password: formData.password,
         studentId: formData.studentId,
+        university: formData.university,
         course: formData.course,
         year: formData.year,
-        university: formData.university,
         aadharId: formData.aadharId,
-        apaarId: formData.apaarId || null,
-        phone: formData.phone,
-        profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name)}&background=3b82f6&color=fff`,
-        verified: true,
-        createdAt: new Date().toISOString(),
-        socialLinks: {
-          linkedin: '',
-          github: '',
-          portfolio: ''
-        }
+        apaarId: formData.apaarId,
+        phone: formData.phone
       };
 
-      const { setUser } = useAuthStore.getState();
-      setUser(newUser);
-      
-      // Navigate to student dashboard after successful registration
-      navigate('/student');
+      const resp = await postSignup(payload);
+      if (resp?.user) {
+        const { setUser } = useAuthStore.getState();
+        setUser(resp.user);
+        navigate('/student');
+        return;
+      }
+
+      throw new Error('Signup failed');
     } catch (err) {
       setError(err.message || 'Registration failed');
     } finally {
