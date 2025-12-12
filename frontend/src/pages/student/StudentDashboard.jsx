@@ -1,184 +1,171 @@
 import { useState, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { 
-  GraduationCap, 
-  Upload, 
-  FileText, 
-  X, 
+import {
+  GraduationCap,
+  Upload,
+  FileText,
+  X,
   Send,
-  User,
   Mail,
-  Phone,
-  Calendar,
-  MapPin,
-  ExternalLink,
-  QrCode,
-  Camera,
-  Github,
-  Linkedin,
-  Globe,
-  Award,
   BookOpen,
+  Calendar,
   Building,
   CheckCircle,
   XCircle,
   AlertTriangle,
   Shield,
+  QrCode,
   Copy,
   Share2,
   Eye,
+  Linkedin,
+  Github,
+  Globe,
   Clock
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
-import { generateQrCode, downloadQrCode, createSamplePortfolioPayload } from '../../utils/qr';
+import { generateQrCode, downloadQrCode } from '../../utils/qr';
+import { authAPI } from '../../lib/api';
 
 export const StudentDashboard = () => {
   const { user, signOut } = useAuthStore();
-  
-  // Force Shashank Vardhan Reddy's profile data
+
+  // Minimal placeholder profile (replace with real data from auth/profile)
   const currentUser = {
-    name: 'Shashank Vardhan Reddy',
-    studentId: '9374-5621-8945',
-    email: 'shashankvardhhanreddy@gmail.com',
-    course: 'B.Tech Computer Science',
-    year: '4th Year',
-    university: 'Osmania University',
-    profilePhoto: '/shashank-profile.jpg',
-    socialLinks: {
-      linkedin: 'https://www.linkedin.com/in/sv-reddy/',
-      github: 'https://github.com/sv-reddy'
-    }
+    name: user?.name || 'Student Name',
+    studentId: user?.studentId || 'STU-XXXX',
+    email: user?.email || 'student@example.com',
+    course: user?.course || 'B.Tech Computer Science',
+    year: user?.year || '4th Year',
+    university: user?.university || 'Your University',
+    profilePhoto: user?.profilePhoto || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+    socialLinks: user?.socialLinks || {}
   };
-  
+
+  const [publicProfile, setPublicProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
+  // Merge backend public profile (if present) with local user
+  const displayUser = {
+    ...currentUser,
+    ...(publicProfile || {})
+  };
+
   const [uploadedFiles, setUploadedFiles] = useState([]);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scannedDocuments, setScannedDocuments] = useState(null);
-  const [isValidating, setIsValidating] = useState(false);
-  const [dummyQrCode, setDummyQrCode] = useState(null);
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  
-  const [submissionData, setSubmissionData] = useState({
-    documentType: ''
-  });
-
-  // Document verification status mapping for Shashank Vardhan Reddy
-  const documentVerificationStatus = {
-    // File name patterns based on uploaded documents
-    'ssc': 'verified', // SSC Memo_shash.pdf (10th class)
-    'inter': 'verified', // Inter Short Memo_shash.pdf (12th class)  
-    'sem all': 'verified', // SEM ALL shash.pdf (semester records - 1st to 4th)
-    'math competition': 'unable-to-verify', // MATH competition GNITS Participation
-    // Additional mappings
-    '10th': 'verified',
-    '12th': 'verified', 
-    'semester': 'verified', // Default for semester documents
-    '5th semester': 'semi-verified',
-    'academic transcript': 'verified',
-    'identity proof': 'verified',
-    'address proof': 'verified'
-  };
-
   const [submittedDocuments, setSubmittedDocuments] = useState([]);
-  const [showVerificationResults, setShowVerificationResults] = useState(false);
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState(null);
+  const [dummyQrCode, setDummyQrCode] = useState(null);
   const [showQrModal, setShowQrModal] = useState(false);
   const [generatingQr, setGeneratingQr] = useState(false);
+
+  const [submissionData, setSubmissionData] = useState({ documentType: '' });
+  const [showVerificationResults, setShowVerificationResults] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [scannedDocuments, setScannedDocuments] = useState(null);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Handle escape key to close modal
-  useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') {
-        if (isFullscreen) {
-          setIsFullscreen(false);
-        } else if (showQrModal) {
-          setShowQrModal(false);
-        }
-      }
-    };
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [showQrModal, isFullscreen]);
-
-  // Generate dummy QR code for demonstration
+  // Generate a small sample QR for profile display
   useEffect(() => {
-    const generateDummyQR = async () => {
+    const generate = async () => {
       try {
-        const dummyData = {
-          type: 'DOCUMENT_VERIFICATION',
-          version: '1.0',
-          studentInfo: {
-            id: 'STU-2025-001',
-            name: 'Sample Student',
-            email: 'sample.student@university.edu',
-            university: 'Sample University',
-            course: 'Computer Science',
-            year: '3rd Year'
-          },
-          verification: {
-            total: 2,
-            verified: 2,
-            verifiedDocuments: [
-              { name: 'Academic Transcript.pdf', type: 'Academic Records', status: 'VERIFIED' },
-              { name: 'ID Proof.jpg', type: 'Identity Proof', status: 'VERIFIED' }
-            ]
-          },
-          issuedAt: new Date().toISOString()
-        };
-        
-        const qrDataUrl = await generateQrCode(dummyData, { size: 400, margin: 1 });
-        setDummyQrCode(qrDataUrl);
-      } catch (error) {
-        console.error('Failed to generate dummy QR code:', error);
+        const payload = { name: displayUser.name, studentId: displayUser.studentId };
+        const dataUrl = await generateQrCode(JSON.stringify(payload), { size: 300 });
+        setDummyQrCode(dataUrl);
+      } catch (err) {
+        console.error('generate QR error', err);
       }
     };
+    generate();
+  }, [displayUser.name, displayUser.studentId]);
 
-    generateDummyQR();
-  }, []);
-
+  // Fetch public profile from backend and merge
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user?.studentId) return;
+      setLoadingProfile(true);
+      try {
+        const res = await authAPI.getPublicProfile(user.studentId);
+        // backend may return { success, profile } or the profile object directly
+        const profileData = res?.profile || res?.data || res;
+        setPublicProfile(profileData || null);
+      } catch (err) {
+        console.warn('Failed to fetch public profile', err);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+    fetchProfile();
+  }, [user?.studentId]);
   const onDrop = (acceptedFiles) => {
-    const newFiles = acceptedFiles.map(file => ({
-      file,
-      id: Math.random().toString(36).substring(7),
+    const files = acceptedFiles.map((file) => ({
+      id: Math.random().toString(36).slice(2, 9),
       name: file.name,
       size: file.size,
-      type: file.type,
+      file,
       uploadedAt: new Date().toISOString()
     }));
-    
-    setUploadedFiles(prev => [...prev, ...newFiles]);
+    setUploadedFiles((s) => [...s, ...files]);
   };
-
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    multiple: true,
     accept: {
-      'image/*': ['.jpeg', '.jpg', '.png'],
       'application/pdf': ['.pdf'],
-      'application/msword': ['.doc'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
-    },
-    multiple: true
+      'image/*': ['.jpeg', '.jpg', '.png']
+    }
   });
-
   const removeFile = (fileId) => {
-    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+    setUploadedFiles((prev) => prev.filter((f) => f.id !== fileId));
   };
 
   const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
+    if (!bytes) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
   };
 
   const handleInputChange = (field, value) => {
-    setSubmissionData(prev => ({
+    setSubmissionData((prev) => ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const getDocumentVerificationStatus = (fileName, documentType) => {
+    const fileNameLower = (fileName || '').toLowerCase();
+    const docTypeLower = (documentType || '').toLowerCase();
+
+    if (fileNameLower.includes('math') && fileNameLower.includes('competition')) {
+      return 'unable-to-verify';
+    }
+
+    if (fileNameLower.includes('ssc') && fileNameLower.includes('memo')) {
+      return 'verified';
+    }
+
+    if (fileNameLower.includes('inter') && (fileNameLower.includes('memo') || fileNameLower.includes('short'))) {
+      return 'verified';
+    }
+
+    if (fileNameLower.includes('sem all') || (fileNameLower.includes('sem') && fileNameLower.includes('all'))) {
+      return 'verified';
+    }
+
+    if (docTypeLower.includes('5th') && docTypeLower.includes('semester')) {
+      return 'semi-verified';
+    }
+
+    if (fileNameLower.includes('competition') || fileNameLower.includes('participation')) {
+      return 'unable-to-verify';
+    }
+
+    return 'verified';
   };
 
   const handleSubmitDocuments = () => {
@@ -186,159 +173,63 @@ export const StudentDashboard = () => {
       alert('Please upload at least one document before submitting.');
       return;
     }
-    
-    // Process documents and assign verification status
-    const processedDocuments = uploadedFiles.map(file => {
+
+    const processedDocuments = uploadedFiles.map((file) => {
       const verificationStatus = getDocumentVerificationStatus(file.name, submissionData.documentType);
       return {
         ...file,
-        documentType: submissionData.documentType,
-        verificationStatus: verificationStatus,
+        documentType: submissionData.documentType || 'Academic Records',
+        verificationStatus,
         submittedAt: new Date().toISOString(),
-        verificationId: Math.random().toString(36).substring(7)
+        verificationId: Math.random().toString(36).substring(2, 10).toUpperCase()
       };
     });
-    
-    setSubmittedDocuments(prev => [...prev, ...processedDocuments]);
+
+    setSubmittedDocuments((prev) => [...prev, ...processedDocuments]);
     setShowVerificationResults(true);
-    
-    // Show success message with verification summary
-    const verifiedCount = processedDocuments.filter(d => d.verificationStatus === 'verified').length;
-    const semiVerifiedCount = processedDocuments.filter(d => d.verificationStatus === 'semi-verified').length;
-    const unableToVerifyCount = processedDocuments.filter(d => d.verificationStatus === 'unable-to-verify').length;
-    
-    alert(`Documents submitted successfully!\n\n✅ Verified: ${verifiedCount}\n⚠️ Semi-Verified: ${semiVerifiedCount}\n❌ Unable to Verify: ${unableToVerifyCount}\n\nScroll down to see detailed verification results.`);
-    
-    // Clear form after submission
+
+    const verifiedCount = processedDocuments.filter((d) => d.verificationStatus === 'verified').length;
+    const semiVerifiedCount = processedDocuments.filter((d) => d.verificationStatus === 'semi-verified').length;
+    const unableToVerifyCount = processedDocuments.filter((d) => d.verificationStatus === 'unable-to-verify').length;
+
+    alert(
+      `Documents submitted successfully!\n\n` +
+        `✅ Verified: ${verifiedCount}\n` +
+        `⚠️ Semi-Verified: ${semiVerifiedCount}\n` +
+        `❌ Unable to Verify: ${unableToVerifyCount}`
+    );
+
     setUploadedFiles([]);
-    setSubmissionData({
-      documentType: ''
-    });
-    
-    console.log('Submission Data:', submissionData);
-    console.log('Processed Documents:', processedDocuments);
-  };
-
-  const getDocumentVerificationStatus = (fileName, documentType) => {
-    const fileNameLower = fileName.toLowerCase();
-    const docTypeLower = (documentType || '').toLowerCase();
-    
-    // Debug log
-    console.log('Checking verification for:', fileName, 'Type:', documentType);
-    
-    // Check for MATH competition first (highest priority)
-    if (fileNameLower.includes('math') && fileNameLower.includes('competition')) {
-      console.log('MATH competition detected - returning unable-to-verify');
-      return 'unable-to-verify'; // MATH competition certificate
-    }
-    
-    // Check for specific file name patterns
-    if (fileNameLower.includes('ssc') && fileNameLower.includes('memo')) {
-      return 'verified'; // 10th class SSC certificate
-    }
-    
-    if (fileNameLower.includes('inter') && (fileNameLower.includes('memo') || fileNameLower.includes('short'))) {
-      return 'verified'; // 12th class Inter certificate
-    }
-    
-    if (fileNameLower.includes('sem all') || (fileNameLower.includes('sem') && fileNameLower.includes('all'))) {
-      return 'verified'; // All semester records (1st to 4th)
-    }
-    
-    // Check document type if file name doesn't match
-    if (docTypeLower.includes('5th') && docTypeLower.includes('semester')) {
-      return 'semi-verified';
-    }
-    
-    // Check general patterns
-    for (const [key, status] of Object.entries(documentVerificationStatus)) {
-      if (fileNameLower.includes(key.toLowerCase()) || docTypeLower.includes(key.toLowerCase())) {
-        return status;
-      }
-    }
-    
-    // Default to verified for other documents, but check for specific patterns first
-    if (fileNameLower.includes('competition') || fileNameLower.includes('participation')) {
-      return 'unable-to-verify';
-    }
-    
-    return 'verified';
-  };
-
-  // Debug function to test with screenshot file names
-  const testVerificationWithScreenshotFiles = () => {
-    const testFiles = [
-      { 
-        id: 'test1', 
-        name: 'SEM ALL shash.pdf', 
-        size: 583350,
-        type: 'application/pdf',
-        uploadedAt: new Date().toISOString()
-      },
-      { 
-        id: 'test2', 
-        name: 'SSC Memo_shash.pdf', 
-        size: 139350,
-        type: 'application/pdf',
-        uploadedAt: new Date().toISOString()
-      },
-      { 
-        id: 'test3', 
-        name: 'Inter Short Memo_shash.pdf', 
-        size: 101040,
-        type: 'application/pdf',
-        uploadedAt: new Date().toISOString()
-      },
-      { 
-        id: 'test4', 
-        name: 'MATH competition GNITS Participation Certificates_shash.pdf', 
-        size: 311610,
-        type: 'application/pdf',
-        uploadedAt: new Date().toISOString()
-      }
-    ];
-    
-    // Create submitted documents with verification status
-    const submittedTestDocs = testFiles.map(file => ({
-      ...file,
-      documentType: 'Academic Records',
-      submittedAt: new Date().toISOString(),
-      verificationId: `VER${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-      verificationStatus: getDocumentVerificationStatus(file.name),
-    }));
-    
-    setUploadedFiles(testFiles);
-    setSubmittedDocuments(submittedTestDocs);
-    setSubmissionData({
-      documentType: 'Academic Records'
-    });
-    
-    // Show verification results
-    setShowVerificationResults(true);
+    setSubmissionData({ documentType: '' });
   };
 
   const generateStudentQrCode = async () => {
+    if (submittedDocuments.length === 0) {
+      alert('Please submit documents before generating QR code.');
+      return;
+    }
+
     setGeneratingQr(true);
     try {
-      const verifiedDocs = submittedDocuments.filter(doc => doc.verificationStatus === 'verified');
-      
+      const verifiedDocs = submittedDocuments.filter((d) => d.verificationStatus === 'verified');
+
       const verificationData = {
         type: 'DOCUMENT_VERIFICATION',
         version: '1.0',
         studentInfo: {
-          id: currentUser?.studentId,
-          name: currentUser?.name,
-          email: currentUser?.email,
-          university: currentUser?.university,
-          course: currentUser?.course,
-          year: currentUser?.year
+          id: displayUser.studentId,
+          name: displayUser.name,
+          email: displayUser.email,
+          university: displayUser.university,
+          course: displayUser.course,
+          year: displayUser.year
         },
         verification: {
           total: submittedDocuments.length,
           verified: verifiedDocs.length,
-          semiVerified: submittedDocuments.filter(doc => doc.verificationStatus === 'semi-verified').length,
-          unableToVerify: submittedDocuments.filter(doc => doc.verificationStatus === 'unable-to-verify').length,
-          verifiedDocuments: verifiedDocs.map(doc => ({
+          semiVerified: submittedDocuments.filter((d) => d.verificationStatus === 'semi-verified').length,
+          unableToVerify: submittedDocuments.filter((d) => d.verificationStatus === 'unable-to-verify').length,
+          verifiedDocuments: verifiedDocs.map((doc) => ({
             name: doc.name,
             type: doc.documentType,
             verificationId: doc.verificationId,
@@ -351,17 +242,11 @@ export const StudentDashboard = () => {
           }))
         },
         issuedAt: new Date().toISOString(),
-        signature: `ACVS_${Date.now()}_${currentUser?.studentId}`,
-        note: 'Scan this QR to view verified documents online with preview functionality'
+        signature: `ACVS_${Date.now()}_${currentUser.studentId}`
       };
 
-      // Create URL with verification data
-      const currentHost = window.location.origin;
-      const verificationUrl = `${currentHost}/verify?data=${encodeURIComponent(JSON.stringify(verificationData))}`;
-      
-      const dataUrl = await generateQrCode(verificationUrl, { size: 600 });
+      const dataUrl = await generateQrCode(verificationData, { size: 512 });
       setQrCodeDataUrl(dataUrl);
-      setIsFullscreen(true); // Start in fullscreen mode
       setShowQrModal(true);
     } catch (error) {
       alert('Failed to generate QR code: ' + error.message);
@@ -371,42 +256,51 @@ export const StudentDashboard = () => {
   };
 
   const downloadStudentQrCode = async () => {
-    if (!qrCodeDataUrl) return;
-    
+    if (submittedDocuments.length === 0) {
+      alert('Please submit documents before downloading QR code.');
+      return;
+    }
+
     try {
-      const verifiedDocs = submittedDocuments.filter(doc => doc.verificationStatus === 'verified');
-      
+      const verifiedDocs = submittedDocuments.filter((d) => d.verificationStatus === 'verified');
+
       const qrPayload = {
         type: 'DOCUMENT_VERIFICATION',
         version: '1.0',
         studentInfo: {
-          id: currentUser?.studentId,
-          name: currentUser?.name,
-          email: currentUser?.email,
-          university: currentUser?.university,
-          course: currentUser?.course,
-          year: currentUser?.year
+          id: displayUser.studentId,
+          name: displayUser.name,
+          email: displayUser.email,
+          university: displayUser.university,
+          course: displayUser.course,
+          year: displayUser.year
         },
         verification: {
           total: submittedDocuments.length,
           verified: verifiedDocs.length,
-          semiVerified: submittedDocuments.filter(doc => doc.verificationStatus === 'semi-verified').length,
-          unableToVerify: submittedDocuments.filter(doc => doc.verificationStatus === 'unable-to-verify').length,
-          verifiedDocuments: verifiedDocs.map(doc => ({
+          semiVerified: submittedDocuments.filter((d) => d.verificationStatus === 'semi-verified').length,
+          unableToVerify: submittedDocuments.filter((d) => d.verificationStatus === 'unable-to-verify').length,
+          verifiedDocuments: verifiedDocs.map((doc) => ({
             name: doc.name,
             type: doc.documentType,
             verificationId: doc.verificationId,
             submittedAt: doc.submittedAt,
             status: 'VERIFIED',
-            hash: `sha256_${doc.verificationId}`
+            hash: `sha256_${doc.verificationId}`,
+            size: doc.size,
+            fileExtension: doc.name.split('.').pop().toLowerCase(),
+            previewAvailable: ['pdf', 'jpg', 'jpeg', 'png'].includes(doc.name.split('.').pop().toLowerCase())
           }))
         },
         issuedAt: new Date().toISOString(),
-        signature: `ACVS_${Date.now()}_${currentUser?.studentId}`,
-        note: 'This is document verification data - not a web URL. Use ACVS app to view details.'
+        signature: `ACVS_${Date.now()}_${currentUser.studentId}`
       };
 
-      await downloadQrCode(qrPayload, `${currentUser?.name?.replace(/\s+/g, '_')}_verified_documents.png`, { size: 400 });
+      await downloadQrCode(
+        qrPayload,
+        `${(displayUser.name || 'student').replace(/\s+/g, '_')}_verified_documents.png`,
+        { size: 400 }
+      );
     } catch (error) {
       alert('Failed to download QR code: ' + error.message);
     }
@@ -1631,3 +1525,5 @@ export const StudentDashboard = () => {
     </div>
   );
 };
+
+export default StudentDashboard;

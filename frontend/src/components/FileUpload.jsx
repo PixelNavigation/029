@@ -20,7 +20,6 @@ export const FileUpload = ({ onFileSelect, acceptedFileTypes = '.pdf,.jpg,.jpeg,
     
     setUploadedFiles(prev => [...prev, ...newFiles]);
     
-    // Call onFileSelect immediately with the actual file objects for LandingPage
     if (onFileSelect) {
       const fileObjects = acceptedFiles; // Pass the actual File objects
       onFileSelect(fileObjects);
@@ -52,43 +51,15 @@ export const FileUpload = ({ onFileSelect, acceptedFileTypes = '.pdf,.jpg,.jpeg,
     setIsProcessing(true);
     setVerificationStatus('processing');
 
-    // Simulate document processing
+    // Process documents through backend API
     try {
-      // Show processing message for 3 seconds
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Show processing message
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Generate mock verification data
-      const mockVerificationData = {
-        studentInfo: {
-          name: 'John Doe Smith',
-          email: 'john.smith@university.edu',
-          id: 'STU2024001',
-          university: 'MIT University',
-          course: 'Bachelor of Technology',
-          year: '2020-2024'
-        },
-        verification: {
-          total: uploadedFiles.length,
-          verified: uploadedFiles.length,
-          semiVerified: 0,
-          unableToVerify: 0,
-          verifiedDocuments: uploadedFiles.map((file, index) => ({
-            name: file.name,
-            type: file.name.toLowerCase().includes('degree') ? 'Degree Certificate' : 
-                  file.name.toLowerCase().includes('transcript') ? 'Academic Transcript' : 
-                  'Academic Document',
-            submittedAt: new Date().toISOString(),
-            verificationId: `VER${Date.now()}${index}`
-          }))
-        },
-        issuedAt: new Date().toISOString(),
-        signature: '0x' + Math.random().toString(16).substr(2, 64),
-        version: '2.1.0'
-      };
-      
-      // Navigate to verification page with data
-      const encodedData = encodeURIComponent(JSON.stringify(mockVerificationData));
-      navigate(`/verify?data=${encodedData}`);
+      // TODO: Implement actual document verification API
+      setError('Document verification system not yet implemented.');
+      setIsProcessing(false);
+      setVerificationStatus(null);
       
     } catch (error) {
       setIsProcessing(false);

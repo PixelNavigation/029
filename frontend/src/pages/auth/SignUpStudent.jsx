@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { useAuthStore } from '../../store/auth';
-import { Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, Shield } from 'lucide-react';
+import { authAPI } from '../../lib/api';
 
 export default function SignUpStudent() {
   const [formData, setFormData] = useState({
@@ -20,8 +21,12 @@ export default function SignUpStudent() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [profileFile, setProfileFile] = useState(null);
+  const [profilePreview, setProfilePreview] = useState(null);
   const [aadharVerified, setAadharVerified] = useState(false);
   const [verifyingAadhar, setVerifyingAadhar] = useState(false);
+
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -88,39 +93,91 @@ export default function SignUpStudent() {
     setIsLoading(true);
 
     try {
-      // Mock registration - in real implementation, this would call actual API
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const newUser = {
-        id: `student-${Date.now()}`,
+      let profilePhotoUrl = '';
+
+      // Call backend API to create student account
+      const response = await authAPI.signupStudent({
         email: formData.email,
-        role: 'student',
+        password: formData.password,
         name: formData.name,
         studentId: formData.studentId,
+        university: formData.university,
         course: formData.course,
         year: formData.year,
-        university: formData.university,
         aadharId: formData.aadharId,
-        apaarId: formData.apaarId || null,
+        apaarId: formData.apaarId || '',
         phone: formData.phone,
-        profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name)}&background=3b82f6&color=fff`,
-        verified: true,
-        createdAt: new Date().toISOString(),
-      };
-
-      const { setUser } = useAuthStore.getState();
-      setUser(newUser);
+        profilePhoto: profilePhotoUrl
+      });
+      
+      if (response.success) {
+        // Show success message and redirect to signin
+        alert(response.message || 'Account created successfully! Please sign in.');
+        navigate('/auth/signin-student');
+      }
     } catch (err) {
-      setError(err.message || 'Registration failed');
+      console.error('Signup error:', err);
+      // Handle different error types
+      if (err.response) {
+        // Server responded with error
+        const errorMessage = err.response.data?.error || 'Registration failed';
+        setError(errorMessage);
+      } else if (err.request) {
+        // Request made but no response
+        setError('Unable to connect to server. Please ensure the backend is running.');
+      } else {
+        // Other errors
+        setError(err.message || 'Registration failed');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleProfileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProfileFile(file);
+    try {
+      const url = URL.createObjectURL(file);
+      setProfilePreview(url);
+    } catch (err) {
+      setProfilePreview(null);
+    }
+  };
+
   return (
-    <form className="space-y-6" onSubmit={handleSubmit}>
-      {/* Name */}
-      <div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      {/* Header with back button */}
+      <div className="sm:mx-auto sm:w-full sm:max-w-md mb-8">
+        <Link 
+          to="/"
+          className="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-6"
+        >
+          <ArrowLeft className="h-5 w-5 mr-2" />
+          Back to Home
+        </Link>
+      </div>
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="flex justify-center mb-6">
+          <div className="bg-blue-600 p-3 rounded-full">
+            <Shield className="h-8 w-8 text-white" />
+          </div>
+        </div>
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Create Student Account
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Join our academic verification platform
+        </p>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow-xl sm:rounded-lg sm:px-10">
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            {/* Name */}
+            <div>
         <label htmlFor="name" className="block text-sm font-medium text-gray-700">
           Full Name *
         </label>
@@ -137,6 +194,32 @@ export default function SignUpStudent() {
           />
         </div>
       </div>
+
+            {/* Profile Photo (optional) */}
+            <div>
+              <label htmlFor="profilePhoto" className="block text-sm font-medium text-gray-700">
+                Profile Photo (optional)
+              </label>
+              <div className="mt-2 flex items-center space-x-4">
+                <div>
+                  <input
+                    id="profilePhoto"
+                    name="profilePhoto"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleProfileChange}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Recommended: 200x200 px, JPG/PNG</p>
+                </div>
+                {profilePreview && (
+                  <div className="flex items-center space-x-2">
+                    <img src={profilePreview} alt="preview" className="w-14 h-14 rounded-full object-cover border" />
+                    <button type="button" onClick={() => { setProfileFile(null); setProfilePreview(null); }} className="text-xs text-red-600">Remove</button>
+                  </div>
+                )}
+              </div>
+            </div>
 
       {/* Email */}
       <div>
@@ -395,5 +478,17 @@ export default function SignUpStudent() {
         </button>
       </div>
     </form>
+
+    <div className="mt-6 text-center">
+      <Link
+        to="/auth/signin-student"
+        className="text-blue-600 hover:text-blue-500 text-sm font-medium"
+      >
+        Already have an account? Sign in
+      </Link>
+    </div>
+        </div>
+      </div>
+    </div>
   );
 }

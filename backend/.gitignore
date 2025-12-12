@@ -1,0 +1,7 @@
+venv/
+.venv/
+.env
+uploads/
+*.pyc
+ocr_templates/
+__pycache__/

@@ -20,49 +20,11 @@ export const LandingPage = () => {
     setUploadedFiles(files);
     setIsProcessing(true);
     
-    // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // TODO: Implement actual document verification API
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Generate mock verification data
-    const mockData = {
-      studentInfo: {
-        name: 'Gautam Babel Jain',
-        email: 'demo.mail@demouniversity.edu',
-        university: 'MIT University',
-        course: 'Bachelor of Technology',
-        year: '2022-2026',
-        id: 'STU2024001'
-      },
-      verification: {
-        total: files.length,
-        verified: files.length,
-        verifiedDocuments: files.map((file, index) => ({
-          name: file.name,
-          type: 'Academic Certificate',
-          submittedAt: new Date().toISOString(),
-          verificationId: `VER${Date.now()}${index}`
-        }))
-      },
-      issuedAt: new Date().toISOString(),
-      signature: Math.random().toString(36).substring(2, 15),
-      version: '2.1.0',
-      blockchainInfo: {
-        transactionHash: '0x' + Math.random().toString(16).substr(2, 64),
-        blockNumber: Math.floor(Math.random() * 1000000) + 15000000,
-        confirmations: Math.floor(Math.random() * 100) + 50
-      },
-      uploadedFiles: files.map((file, index) => ({
-        id: index,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        url: URL.createObjectURL(file),
-        file: file
-      }))
-    };
-    
-    setVerificationData(mockData);
     setIsProcessing(false);
+    alert('Document verification system not yet implemented.');
   };
 
   const handleFilePreview = (file) => {
@@ -100,49 +62,18 @@ export const LandingPage = () => {
       video.setAttribute('playsinline', true); // Required for iOS
       video.play();
       
-      // You can add QR code scanning logic here
-      // For now, we'll simulate scanning after 3 seconds
+      // QR code scanning
       setTimeout(async () => {
         // Stop camera
         stream.getTracks().forEach(track => track.stop());
         setIsCameraOpen(false);
         
-        // Simulate QR code detection and verification
         setIsProcessing(true);
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const mockData = {
-          studentInfo: {
-            name: 'Jane Smith (Camera Scan)',
-            email: 'jane.smith@university.edu',
-            university: 'Stanford University',
-            course: 'Master of Science',
-            year: '2020-2022',
-            id: 'STU2022002'
-          },
-          verification: {
-            total: 1,
-            verified: 1,
-            verifiedDocuments: [{
-              name: 'Camera Scanned QR Certificate',
-              type: 'Academic Certificate',
-              submittedAt: new Date().toISOString(),
-              verificationId: `VER${Date.now()}`
-            }]
-          },
-          issuedAt: new Date().toISOString(),
-          signature: Math.random().toString(36).substring(2, 15),
-          version: '2.1.0',
-          blockchainInfo: {
-            transactionHash: '0x' + Math.random().toString(16).substr(2, 64),
-            blockNumber: Math.floor(Math.random() * 1000000) + 15000000,
-            confirmations: Math.floor(Math.random() * 100) + 50
-          },
-          uploadedFiles: []
-        };
-        
-        setVerificationData(mockData);
+        // TODO: Implement actual QR code verification
         setIsProcessing(false);
+        alert('QR code verification system not yet implemented.');
       }, 3000);
       
     } catch (error) {
@@ -313,41 +244,11 @@ export const LandingPage = () => {
                           }
                           
                           setIsProcessing(true);
-                          // Simulate QR verification from image
-                          await new Promise(resolve => setTimeout(resolve, 1500));
+                          await new Promise(resolve => setTimeout(resolve, 1000));
                           
-                          const mockData = {
-                            studentInfo: {
-                              name: 'Mike Johnson',
-                              email: 'mike.johnson@university.edu',
-                              university: 'Harvard University',
-                              course: 'Bachelor of Arts',
-                              year: '2019-2023',
-                              id: 'STU2023003'
-                            },
-                            verification: {
-                              total: 1,
-                              verified: 1,
-                              verifiedDocuments: [{
-                                name: 'QR Image Verified Certificate',
-                                type: 'Academic Certificate',
-                                submittedAt: new Date().toISOString(),
-                                verificationId: `VER${Date.now()}`
-                              }]
-                            },
-                            issuedAt: new Date().toISOString(),
-                            signature: Math.random().toString(36).substring(2, 15),
-                            version: '2.1.0',
-                            blockchainInfo: {
-                              transactionHash: '0x' + Math.random().toString(16).substr(2, 64),
-                              blockNumber: Math.floor(Math.random() * 1000000) + 15000000,
-                              confirmations: Math.floor(Math.random() * 100) + 50
-                            },
-                            uploadedFiles: []
-                          };
-                          
-                          setVerificationData(mockData);
+                          // TODO: Implement actual QR code verification from image
                           setIsProcessing(false);
+                          alert('QR code verification from image not yet implemented.');
                         }}
                         className="hidden"
                         id="qr-upload"

@@ -9,7 +9,12 @@ export const Navbar = () => {
   const navigate = useNavigate();
 
   const handleLogin = (role) => {
-    navigate('/auth/signin', { state: { role } });
+    const routes = {
+      admin: '/auth/signin-admin',
+      institution: '/auth/signin-institution',
+      student: '/auth/signin-student'
+    };
+    navigate(routes[role] || '/auth/signin');
   };
 
   const handleLogout = () => {

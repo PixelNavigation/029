@@ -2,7 +2,10 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/auth';
 import { LandingPage } from './pages/LandingPage';
-import { SignIn } from './pages/auth/SignIn';
+import SignInAdmin from './pages/auth/SignInAdmin';
+import SignInInstitution from './pages/auth/SignInInstitution';
+import SignInStudent from './pages/auth/SignInStudent';
+import SignUpStudent from './pages/auth/SignUpStudent';
 import { UniversitySignUp } from './pages/auth/UniversitySignUp';
 import { StudentDashboard } from './pages/student/StudentDashboard';
 import { StudentApplicationPortal } from './pages/student/StudentApplicationPortal';
@@ -25,7 +28,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user } = useAuthStore();
 
   if (!user) {
-    return <Navigate to="/auth/signin" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
@@ -43,7 +46,10 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
-            <Route path="/auth/signin" element={<SignIn />} />
+            <Route path="/auth/signin-admin" element={<SignInAdmin />} />
+            <Route path="/auth/signin-institution" element={<SignInInstitution />} />
+            <Route path="/auth/signin-student" element={<SignInStudent />} />
+            <Route path="/auth/signup-student" element={<SignUpStudent />} />
             <Route path="/auth/university-signup" element={<UniversitySignUp />} />
             <Route path="/verify" element={<VerificationPage />} />
             
