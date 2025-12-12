@@ -5,7 +5,8 @@ from supabase import create_client
 from dotenv import load_dotenv
 from datetime import datetime
 from werkzeug.utils import secure_filename
-import json
+from pathlib import Path
+from ocr_pipeline import verify_certificate
 
 
 load_dotenv()
@@ -325,3 +326,35 @@ def get_uploads():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
+
+# Endpoint: certificate verification using OCR + HOG templates
+@app.route("/api/verify/certificate", methods=["POST"])
+def verify_certificate_route():
+    if not supabase:
+        return jsonify({"error": "Database not configured"}), 503
+
+    # Expecting multipart/form-data with file field 'file' and optionally 'studentId'
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "Empty filename"}), 400
+
+    uploads_dir = Path(__file__).parent / 'uploads'
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = secure_filename(file.filename)
+    # ensure unique
+    unique_name = f"{uuid.uuid4().hex}_{filename}"
+    save_path = uploads_dir / unique_name
+    file.save(str(save_path))
+
+    try:
+        result = verify_certificate(str(save_path), templates_dir=str(Path(__file__).parent / 'ocr_templates'))
+    except Exception as e:
+        print('Verification error:', str(e))
+        return jsonify({"error": "Verification failed", "detail": str(e)}), 500
+
+    return jsonify({"success": True, "result": result}), 200
