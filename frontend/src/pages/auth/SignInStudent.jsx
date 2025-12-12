@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Shield } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
+import { authAPI } from '../../lib/api';
 
 export default function SignInStudent() {
   const [email, setEmail] = useState('');
@@ -28,28 +29,30 @@ export default function SignInStudent() {
     setError('');
     try {
       if (!email || !password) throw new Error('Please enter both email and password');
-      const mockUser = {
-        id: 'student-1',
-        email,
-        role: 'student',
-        name: 'John Doe',
-        studentId: '1608-22-733-130',
-        course: 'B.Tech Computer Science',
-        year: '4th Year',
-        university: 'Osmania University',
-        profilePhoto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-        verified: true,
-        createdAt: new Date().toISOString(),
-        socialLinks: {
-          linkedin: 'https://linkedin.com/in/johndoe',
-          github: 'https://github.com/johndoe',
-          portfolio: 'https://johndoe.dev'
-        }
-      };
-      const { setUser } = useAuthStore.getState();
-      setUser(mockUser);
+      
+      // Call backend API
+      const response = await authAPI.signinStudent(email, password);
+      
+      if (response.success && response.user) {
+        // Set user in store
+        const { setUser } = useAuthStore.getState();
+        setUser(response.user);
+        // Will automatically navigate via useEffect
+      }
     } catch (err) {
-      setError(err.message || 'Signin failed');
+      console.error('Signin error:', err);
+      // Handle different error types
+      if (err.response) {
+        // Server responded with error
+        const errorMessage = err.response.data?.error || 'Sign in failed';
+        setError(errorMessage);
+      } else if (err.request) {
+        // Request made but no response
+        setError('Unable to connect to server. Please ensure the backend is running.');
+      } else {
+        // Other errors
+        setError(err.message || 'Sign in failed');
+      }
     } finally {
       setIsLoading(false);
     }

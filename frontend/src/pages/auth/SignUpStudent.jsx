@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuthStore } from '../../store/auth';
 import { Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, Shield } from 'lucide-react';
+import { authAPI } from '../../lib/api';
 
 export default function SignUpStudent() {
   const [formData, setFormData] = useState({
@@ -91,38 +91,39 @@ export default function SignUpStudent() {
     setIsLoading(true);
 
     try {
-      // Mock registration - in real implementation, this would call actual API
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const newUser = {
-        id: `student-${Date.now()}`,
+      // Call backend API to create student account
+      const response = await authAPI.signupStudent({
         email: formData.email,
-        role: 'student',
+        password: formData.password,
         name: formData.name,
         studentId: formData.studentId,
+        university: formData.university,
         course: formData.course,
         year: formData.year,
-        university: formData.university,
         aadharId: formData.aadharId,
-        apaarId: formData.apaarId || null,
-        phone: formData.phone,
-        profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name)}&background=3b82f6&color=fff`,
-        verified: true,
-        createdAt: new Date().toISOString(),
-        socialLinks: {
-          linkedin: '',
-          github: '',
-          portfolio: ''
-        }
-      };
-
-      const { setUser } = useAuthStore.getState();
-      setUser(newUser);
+        apaarId: formData.apaarId || '',
+        phone: formData.phone
+      });
       
-      // Navigate to student dashboard after successful registration
-      navigate('/student');
+      if (response.success) {
+        // Show success message and redirect to signin
+        alert(response.message || 'Account created successfully! Please sign in.');
+        navigate('/auth/signin-student');
+      }
     } catch (err) {
-      setError(err.message || 'Registration failed');
+      console.error('Signup error:', err);
+      // Handle different error types
+      if (err.response) {
+        // Server responded with error
+        const errorMessage = err.response.data?.error || 'Registration failed';
+        setError(errorMessage);
+      } else if (err.request) {
+        // Request made but no response
+        setError('Unable to connect to server. Please ensure the backend is running.');
+      } else {
+        // Other errors
+        setError(err.message || 'Registration failed');
+      }
     } finally {
       setIsLoading(false);
     }

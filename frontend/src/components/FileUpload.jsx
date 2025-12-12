@@ -20,7 +20,6 @@ export const FileUpload = ({ onFileSelect, acceptedFileTypes = '.pdf,.jpg,.jpeg,
     
     setUploadedFiles(prev => [...prev, ...newFiles]);
     
-    // Call onFileSelect immediately with the actual file objects for LandingPage
     if (onFileSelect) {
       const fileObjects = acceptedFiles; // Pass the actual File objects
       onFileSelect(fileObjects);
