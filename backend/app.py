@@ -462,6 +462,58 @@ def institution_signup():
         return jsonify({"error": f"Registration failed: {str(e)}"}), 500
 
 
+@app.route("/api/auth/institution/signin", methods=["POST"])
+def institution_signin():
+    """Handle institution signin - verifies email, password, and hash key"""
+    if not supabase:
+        return jsonify({"error": "Database not configured"}), 503
+
+    data = request.get_json() or {}
+    
+    # Validate required fields
+    required_fields = ['email', 'password', 'hashKey']
+    missing_fields = [field for field in required_fields if not data.get(field)]
+    
+    if missing_fields:
+        return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
+    
+    try:
+        # Find institution by email
+        result = supabase.table('institutions').select('*').eq('email', data['email']).execute()
+        
+        if not result.data or len(result.data) == 0:
+            return jsonify({"error": "Invalid email or password"}), 401
+        
+        institution = result.data[0]
+        
+        # Verify password (In production, use proper password hashing!)
+        if institution.get('password') != data['password']:
+            return jsonify({"error": "Invalid email or password"}), 401
+        
+        # Verify hash key
+        if institution.get('institution_hash') != data['hashKey']:
+            return jsonify({"error": "Error in hash key, please provide correct hash key"}), 401
+        
+        # Successful authentication
+        return jsonify({
+            "success": True,
+            "message": "Sign in successful",
+            "institution": {
+                "id": institution.get('id'),
+                "institutionName": institution.get('institution_name'),
+                "institutionCode": institution.get('institution_code'),
+                "email": institution.get('email'),
+                "contactPersonName": institution.get('contact_person_name'),
+                "verified": institution.get('verified', False),
+                "createdAt": institution.get('created_at')
+            }
+        }), 200
+            
+    except Exception as e:
+        print(f"Institution signin error: {str(e)}")
+        return jsonify({"error": f"Sign in failed: {str(e)}"}), 500
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
 
