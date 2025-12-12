@@ -46,43 +46,43 @@ def extract_certificate_data_with_gemini(file_path):
         Please extract the following details if present:
         1. Student/Recipient Name
         2. Student ID or Registration Number
-        3. Degree/Certificate Type with Semester (e.g., "B.Tech Semester 5", "M.Sc Sem 3", "Diploma Sem 2")
-        4. University/Institution Name (the issuing organization like "Osmania University")
-        5. Course/Program Name
-        6. Date of Issue
+        3. University/Institution Name (e.g., "Osmania University")
+        4. Course/Program (just the degree type: "B.E.", "B.Tech", "M.Sc", "M.Tech", "Diploma", etc.)
+        5. Specialization/Branch (e.g., "CSE", "ECE", "Computer Science", "Mechanical")
+        6. Semester (just the number: "5", "3", "1", etc.)
         7. CGPA/Percentage
-        8. Year of Study/Passing Year
-        9. Specialization/Branch
+        8. Year of Passing
+        9. Date of Issue
         10. Certificate Number
-        11. Subject-wise Grades (extract all subjects with their individual grades/marks)
-        12. Any other relevant details
+        11. Issuing Authority (the organization name like "Osmania University")
+        12. Subject-wise Grades (extract all subjects with their individual grades/marks)
         
         Return the data in JSON format with these keys:
         {
             "student_name": "",
             "student_id": "",
-            "degree_type": "",
             "university_name": "",
             "course_name": "",
-            "issue_date": "",
+            "specialization": "",
+            "semester": "",
             "cgpa": "",
             "year_of_passing": "",
-            "specialization": "",
+            "issue_date": "",
             "certificate_number": "",
             "issuing_authority": "",
             "subject_grades": [
                 {"subject_name": "", "grade": "", "marks": "", "credits": ""}
             ],
-            "additional_details": {},
             "raw_text": ""
         }
         
-        IMPORTANT:
-        - degree_type should include semester information (e.g., "B.Tech Semester 5")
-        - issuing_authority should be the organization name (e.g., "Osmania University", "JNTU Hyderabad")
-        - Extract all subjects with their grades/marks in subject_grades array
+        CRITICAL EXTRACTION RULES:
+        - course_name: ONLY the degree type without specialization (e.g., "B.E.", "B.Tech", "M.Sc")
+        - specialization: ONLY the branch/stream (e.g., "CSE", "Computer Science Engineering", "ECE")
+        - semester: ONLY the number (e.g., "5", "3", "1")
+        - DO NOT mix course, specialization, and semester - keep them completely separate
+        - issuing_authority: Organization name (e.g., "Osmania University")
         - If any field is not found, leave it as an empty string or empty array
-        - Include the complete text you can read in the "raw_text" field
         """
         
         # Generate content with Gemini
@@ -111,19 +111,28 @@ def extract_certificate_data_with_gemini(file_path):
             certificate_data = {
                 "student_name": "",
                 "student_id": "",
-                "degree_type": "",
                 "university_name": "",
                 "course_name": "",
-                "issue_date": "",
+                "specialization": "",
+                "semester": "",
                 "cgpa": "",
                 "year_of_passing": "",
-                "specialization": "",
+                "issue_date": "",
                 "certificate_number": "",
                 "issuing_authority": "",
                 "subject_grades": [],
-                "additional_details": {},
                 "raw_text": response_text
             }
+        
+        # Build degree_type from course_name + semester
+        course = certificate_data.get('course_name', '').strip()
+        semester = certificate_data.get('semester', '').strip()
+        if course and semester:
+            certificate_data['degree_type'] = f"{course} Semester {semester}"
+        elif course:
+            certificate_data['degree_type'] = course
+        else:
+            certificate_data['degree_type'] = ""
         
         # Add metadata
         certificate_data['extracted_at'] = datetime.utcnow().isoformat()
@@ -175,14 +184,45 @@ def save_to_excel(data_list, institution_name, output_dir='e:\\SIH 2025\\029'):
         filename = f"{safe_institution_name}_Certificates.xlsx"
         filepath = os.path.join(output_dir, filename)
         
-        # Define clean column order
+        # Define clean column order - MUST match verification field names
         columns = [
-            'student_name', 'student_id', 'unicgpa', 
-            'year_of_passing', 'issue_date',
-            'certificate_number', 'issuing_authority', 
-            'subject_grades', 'upload_date',
-            'extracted_at', 'file_name'
+            'student_name', 
+            'student_id', 
+            'university_name', 
+            'course_name',
+            'specialization',
+            'semester',
+            'degree_type', 
+            'cgpa', 
+            'year_of_passing', 
+            'issue_date', 
+            'certificate_number', 
+            'issuing_authority', 
+            'subject_grades', 
+            'file_name',
+            'upload_date', 
+            'extracted_at'
         ]
+        
+        # Define user-friendly header names for Excel
+        header_names = {
+            'student_name': 'Student Name',
+            'student_id': 'Student ID',
+            'university_name': 'University',
+            'course_name': 'Course',
+            'specialization': 'Specialization',
+            'semester': 'Semester',
+            'degree_type': 'Degree Type',
+            'cgpa': 'CGPA',
+            'year_of_passing': 'Year of Passing',
+            'issue_date': 'Issue Date',
+            'certificate_number': 'Certificate Number',
+            'issuing_authority': 'Issuing Authority',
+            'subject_grades': 'Subject-wise Grades',
+            'file_name': 'Source File',
+            'upload_date': 'Upload Date',
+            'extracted_at': 'Extracted At'
+        }
         
         # Prepare data with consistent columns
         prepared_data = []
@@ -200,11 +240,13 @@ def save_to_excel(data_list, institution_name, output_dir='e:\\SIH 2025\\029'):
                         row[col] = ''
                 else:
                     row[col] = data.get(col, '')
-            row = {col: data.get(col, '') for col in columns}
             prepared_data.append(row)
         
         # Create DataFrame with specified column order
         df = pd.DataFrame(prepared_data, columns=columns)
+        
+        # Rename columns to user-friendly names
+        df.rename(columns=header_names, inplace=True)
         
         # Check if file exists to append data
         if os.path.exists(filepath):
@@ -218,45 +260,70 @@ def save_to_excel(data_list, institution_name, output_dir='e:\\SIH 2025\\029'):
         wb = load_workbook(filepath)
         ws = wb.active
         
+        # Set column widths for better readability
+        column_widths = {
+            'A': 25,  # Student Name
+            'B': 18,  # Student ID
+            'C': 30,  # University
+            'D': 15,  # Course
+            'E': 25,  # Specialization
+            'F': 10,  # Semester
+            'G': 25,  # Degree Type
+            'H': 10,  # CGPA
+            'I': 15,  # Year of Passing
+            'J': 15,  # Issue Date
+            'K': 20,  # Certificate Number
+            'L': 30,  # Issuing Authority
+            'M': 60,  # Subject-wise Grades
+            'N': 30,  # Source File
+            'O': 15,  # Upload Date
+            'P': 20   # Extracted At
+        }
+        
+        for col, width in column_widths.items():
+            ws.column_dimensions[col].width = width
+        
         # Header formatting
         header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
-        header_font = Font(bold=True, color='FFFFFF', size=11)
+        header_font = Font(bold=True, color='FFFFFF', size=12)
         border = Border(
-            left=Side(style='thin'),
-            right=Side(style='thin'),
-            top=Side(style='thin'),
-            bottom=Side(style='thin')
+            left=Side(style='thin', color='000000'),
+            right=Side(style='thin', color='000000'),
+            top=Side(style='thin', color='000000'),
+            bottom=Side(style='thin', color='000000')
         )
         
         # Format header row
         for cell in ws[1]:
             cell.fill = header_fill
             cell.font = header_font
-            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             cell.border = border
         
-        # Format data rows
-        for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+        # Set header row height
+        ws.row_dimensions[1].height = 35
+        
+        # Format data rows with alternating colors
+        light_fill = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
+        data_font = Font(size=11)
+        
+        for row_idx, row in enumerate(ws.iter_rows(min_row=2, max_row=ws.max_row), start=2):
+            # Alternating row colors
+            fill = light_fill if row_idx % 2 == 0 else PatternFill()
+            
             for cell in row:
-                cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+                cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
                 cell.border = border
+                cell.font = data_font
+                cell.fill = fill
         
-        # Auto-adjust column widths
-        for column in ws.columns:
-            max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 50)
-            ws.column_dimensions[column_letter].width = adjusted_width
-        
-        # Freeze header row
+        # Freeze the header row
         ws.freeze_panes = 'A2'
         
+        # Add auto-filter to headers
+        ws.auto_filter.ref = ws.dimensions
+        
+        # Save formatted workbook
         wb.save(filepath)
         
         print(f"Data saved to Excel: {filepath}")
@@ -339,3 +406,63 @@ def batch_process_and_save(file_paths, institution_name, output_dir='e:\\SIH 202
             'processed': 0,
             'failed': len(file_paths)
         }
+
+
+def get_standard_field_names():
+    """
+    Returns the standard field names used across the system
+    This ensures consistency between Excel storage and verification matching
+    
+    Returns:
+        list: Standard field names in order
+    """
+    return [
+        'student_name', 
+        'student_id', 
+        'university_name', 
+        'course_name',
+        'specialization',
+        'semester',
+        'degree_type', 
+        'cgpa', 
+        'year_of_passing', 
+        'issue_date', 
+        'certificate_number', 
+        'issuing_authority', 
+        'subject_grades'
+    ]
+
+
+def normalize_extracted_data(data):
+    """
+    Normalize extracted data to ensure all standard fields are present
+    This ensures compatibility with Excel structure and verification
+    
+    Args:
+        data: Dictionary of extracted certificate data
+        
+    Returns:
+        dict: Normalized data with all standard fields
+    """
+    standard_fields = get_standard_field_names()
+    normalized = {}
+    
+    for field in standard_fields:
+        normalized[field] = data.get(field, '')
+    
+    # Ensure degree_type is built from course + semester if not present
+    if not normalized['degree_type'] and normalized['course_name'] and normalized['semester']:
+        normalized['degree_type'] = f"{normalized['course_name']} Semester {normalized['semester']}"
+    elif not normalized['degree_type'] and normalized['course_name']:
+        normalized['degree_type'] = normalized['course_name']
+    
+    # Add metadata fields
+    normalized['upload_date'] = data.get('upload_date', datetime.now().strftime('%Y-%m-%d'))
+    normalized['extracted_at'] = data.get('extracted_at', datetime.utcnow().isoformat())
+    normalized['file_name'] = data.get('file_name', '')
+    
+    # Keep original_filename if present (for institution uploads)
+    if 'original_filename' in data:
+        normalized['original_filename'] = data['original_filename']
+    
+    return normalized

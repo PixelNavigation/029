@@ -4,7 +4,7 @@ import { FileUpload } from '../components/FileUpload';
 import { QRVerification } from '../components/QRVerification';
 import { 
   Shield, CheckCircle, Users, Building2, Award, GraduationCap, Calendar, User, Mail, BookOpen,
-  FileText, Download, Eye, Hash, Clock, Copy, ZoomIn, X, Printer, Share2, QrCode, Upload, Camera
+  FileText, Download, Eye, Hash, Clock, Copy, ZoomIn, X, Printer, Share2, QrCode, Upload, Camera, AlertCircle, XCircle
 } from 'lucide-react';
 
 export const LandingPage = () => {
@@ -15,16 +15,38 @@ export const LandingPage = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [verificationResult, setVerificationResult] = useState(null);
 
   const handleFileSelect = async (files) => {
+    if (!files || files.length === 0) return;
+    
     setUploadedFiles(files);
     setIsProcessing(true);
+    setVerificationResult(null);
     
-    // TODO: Implement actual document verification API
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    setIsProcessing(false);
-    alert('Document verification system not yet implemented.');
+    try {
+      const file = files[0]; // Take first file
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('http://localhost:5000/api/verify-upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setVerificationResult(data.result);
+      } else {
+        alert(data.error || 'Verification failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Verification error:', error);
+      alert('Failed to verify certificate. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleFilePreview = (file) => {
@@ -150,7 +172,7 @@ export const LandingPage = () => {
         </div>
 
         {/* File Upload / Verification Results Section */}
-        {!verificationData ? (
+        {!verificationResult ? (
           <div className="bg-white rounded-2xl shadow-xl p-8 mb-16">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -181,7 +203,7 @@ export const LandingPage = () => {
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
                 <p className="text-gray-600 text-lg">Processing your certificate...</p>
-                <p className="text-gray-500 text-sm mt-2">This may take a few moments</p>
+                <p className="text-gray-500 text-sm mt-2">Extracting data and verifying with database...</p>
               </div>
             ) : (
               <>
@@ -265,7 +287,144 @@ export const LandingPage = () => {
               </>
             )}
           </div>
-        ) : (
+        ) : null}
+
+        {/* Verification Results Display */}
+        {verificationResult && (
+          <div className="bg-white rounded-2xl shadow-xl p-8 mb-16">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl font-bold text-gray-900">Verification Results</h2>
+              <button
+                onClick={() => {
+                  setVerificationResult(null);
+                  setUploadedFiles([]);
+                }}
+                className="text-gray-600 hover:text-gray-800"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Verification Status Banner */}
+            <div className={`p-6 rounded-lg mb-6 ${
+              verificationResult.verification_status === 'verified' 
+                ? 'bg-green-50 border border-green-200'
+                : verificationResult.verification_status === 'semi-verified'
+                ? 'bg-yellow-50 border border-yellow-200'
+                : verificationResult.verification_status === 'not_found'
+                ? 'bg-orange-50 border border-orange-200'
+                : 'bg-red-50 border border-red-200'
+            }`}>
+              <div className="flex items-center space-x-3">
+                {verificationResult.verification_status === 'verified' ? (
+                  <>
+                    <CheckCircle className="h-8 w-8 text-green-600" />
+                    <div>
+                      <h3 className="text-xl font-bold text-green-800">Certificate Verified</h3>
+                      <p className="text-green-700">Match Percentage: {verificationResult.match_percentage}%</p>
+                    </div>
+                  </>
+                ) : verificationResult.verification_status === 'semi-verified' ? (
+                  <>
+                    <AlertCircle className="h-8 w-8 text-yellow-600" />
+                    <div>
+                      <h3 className="text-xl font-bold text-yellow-800">Semi-Verified ✓</h3>
+                      <p className="text-yellow-700">
+                        Template matches database records (Match: {verificationResult.match_percentage}%)
+                      </p>
+                      <p className="text-sm text-yellow-600 mt-1">
+                        ✓ The respective university has been alerted for manual verification
+                      </p>
+                    </div>
+                  </>
+                ) : verificationResult.verification_status === 'not_found' ? (
+                  <>
+                    <AlertCircle className="h-8 w-8 text-orange-600" />
+                    <div>
+                      <h3 className="text-xl font-bold text-orange-800">Record Not Found</h3>
+                      <p className="text-orange-700">
+                        No matching records found in our database
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-8 w-8 text-red-600" />
+                    <div>
+                      <h3 className="text-xl font-bold text-red-800">Verification Failed</h3>
+                      <p className="text-red-700">
+                        Certificate data does not match database records
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Extracted Data */}
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Extracted Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-6 rounded-lg">
+                <div>
+                  <p className="text-sm text-gray-600">Student Name</p>
+                  <p className="font-medium text-gray-900">{verificationResult.extracted_data.student_name || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Student ID</p>
+                  <p className="font-medium text-gray-900">{verificationResult.extracted_data.student_id || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">University</p>
+                  <p className="font-medium text-gray-900">{verificationResult.extracted_data.university_name || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Course</p>
+                  <p className="font-medium text-gray-900">{verificationResult.extracted_data.course_name || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Degree Type</p>
+                  <p className="font-medium text-gray-900">{verificationResult.extracted_data.degree_type || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">CGPA</p>
+                  <p className="font-medium text-gray-900">{verificationResult.extracted_data.cgpa || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Subject Grades */}
+            {verificationResult.extracted_data.subject_grades && 
+             verificationResult.extracted_data.subject_grades.length > 0 && (
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">Subject-wise Grades</h3>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Subject</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Grade</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Marks</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Credits</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {verificationResult.extracted_data.subject_grades.map((subject, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-900">{subject.subject_name || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{subject.grade || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{subject.marks || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{subject.credits || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {verificationData && (
           /* Verification Results */
           <div className="space-y-8 mb-16">
             {/* Header */}

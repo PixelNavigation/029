@@ -41,6 +41,7 @@ export const UniversityDashboard = () => {
   const [lastUploadDate, setLastUploadDate] = useState(null);
   const [uploadError, setUploadError] = useState('');
   const [recentBatches, setRecentBatches] = useState([]);
+  const [currentBatchId, setCurrentBatchId] = useState(null);
 
   // Load recent uploads on mount
   useEffect(() => {
@@ -86,6 +87,7 @@ export const UniversityDashboard = () => {
         setUploadedFiles(prev => [...prev, ...uploadedEntries]);
         setLastUploadCount(uploadedEntries.length);
         setLastUploadDate(new Date());
+        setCurrentBatchId(response.batch_id); // Store batch ID
 
         // Set extracted data for preview
         if (response.extracted_data && response.extracted_data.length > 0) {
@@ -203,14 +205,16 @@ export const UniversityDashboard = () => {
       // First, confirm and save data to Excel
       const saveResponse = await institutionAPI.confirmData(
         previewData,
-        user?.institutionName || user?.name || 'Unknown Institution'
+        user?.institutionName || user?.name || 'Unknown Institution',
+        currentBatchId
       );
 
       if (!saveResponse.success) {
         throw new Error(saveResponse.error || 'Failed to save data to Excel');
       }
 
-      alert(`Successfully saved ${saveResponse.total_records} record(s) to Excel!\nFile: ${saveResponse.excel_file}`);
+      const filesCopied = saveResponse.verified_files?.length || 0;
+      alert(`Successfully saved ${saveResponse.total_records} record(s) to Excel!\nOriginal files saved: ${filesCopied}\nFile: ${saveResponse.excel_file}`);
 
       const results = [];
       

@@ -60,10 +60,11 @@ export const institutionAPI = {
   },
 
   // Confirm and save extracted data to Excel
-  confirmData: async (extractedData, institutionName) => {
+  confirmData: async (extractedData, institutionName, batchId) => {
     const response = await axios.post(`${API_URL}/api/institution/confirm-data`, {
       extracted_data: extractedData,
-      institution_name: institutionName
+      institution_name: institutionName,
+      batch_id: batchId
     });
     return response.data;
   }

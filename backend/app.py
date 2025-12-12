@@ -309,11 +309,16 @@ def upload_certificates():
     extracted_data = []
     if uploaded_files:
         try:
-            from ocr_pipeline import process_certificate_file
+            from ocr_pipeline import process_certificate_file, normalize_extracted_data
             for file_info in uploaded_files:
                 file_path = file_info['file_path']
                 print(f"Extracting data from: {file_path}")
                 data = process_certificate_file(file_path)
+                
+                # Normalize data to ensure consistent field names
+                data = normalize_extracted_data(data)
+                
+                # Add preview metadata
                 data['preview_url'] = file_info['preview_url']
                 data['original_filename'] = file_info['original_filename']
                 extracted_data.append(data)
@@ -390,11 +395,12 @@ def preview_file(institution_name, filename):
 
 @app.route("/api/institution/confirm-data", methods=["POST"])
 def confirm_and_save_data():
-    """Confirm and save extracted data to Excel"""
+    """Confirm and save extracted data to Excel, and copy original files to verified folder"""
     data = request.get_json() or {}
     
     extracted_data = data.get('extracted_data', [])
     institution_name = data.get('institution_name', 'Unknown Institution')
+    batch_id = data.get('batch_id')
     
     if not extracted_data:
         return jsonify({"error": "No data to save"}), 400
@@ -406,12 +412,51 @@ def confirm_and_save_data():
         # Save to Excel
         excel_path = save_to_excel(extracted_data, institution_name, output_dir)
         
+        # Create verified originals folder
+        verified_folder = Path(__file__).parent / 'uploads' / 'verified_originals' / institution_name.replace(' ', '_')
+        verified_folder.mkdir(parents=True, exist_ok=True)
+        
+        # Copy original files to verified folder and store paths in Excel metadata
+        copied_files = []
+        for item in extracted_data:
+            original_filename = item.get('original_filename')
+            if original_filename:
+                # Find the original file
+                safe_institution_name = re.sub(r'[^\w\s-]', '', institution_name)
+                safe_institution_name = re.sub(r'[-\s]+', '_', safe_institution_name)
+                source_folder = Path(__file__).parent / 'uploads' / 'files' / safe_institution_name
+                
+                # Look for the file (may have been renamed with batch_id prefix)
+                source_file = None
+                for file in source_folder.glob('*'):
+                    if original_filename in file.name or file.name.endswith(original_filename):
+                        source_file = file
+                        break
+                
+                if source_file and source_file.exists():
+                    # Copy to verified folder with student ID in filename
+                    student_id = item.get('student_id', 'unknown')
+                    dest_filename = f"{student_id}_{original_filename}"
+                    dest_path = verified_folder / dest_filename
+                    
+                    import shutil
+                    shutil.copy2(source_file, dest_path)
+                    
+                    copied_files.append({
+                        'student_id': student_id,
+                        'original_file': original_filename,
+                        'verified_path': str(dest_path)
+                    })
+                    
+                    print(f"[SAVE] Copied original file: {original_filename} -> {dest_path}")
+        
         if excel_path:
             return jsonify({
                 'success': True,
                 'excel_file': excel_path,
                 'total_records': len(extracted_data),
-                'message': f'Successfully saved {len(extracted_data)} record(s) to Excel'
+                'verified_files': copied_files,
+                'message': f'Successfully saved {len(extracted_data)} record(s) to Excel and {len(copied_files)} original file(s)'
             }), 200
         else:
             return jsonify({
@@ -421,6 +466,8 @@ def confirm_and_save_data():
             
     except Exception as e:
         print(f"Save error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': f'Failed to save data: {str(e)}'
@@ -554,6 +601,419 @@ def institution_signin():
     except Exception as e:
         print(f"Institution signin error: {str(e)}")
         return jsonify({"error": f"Sign in failed: {str(e)}"}), 500
+
+
+@app.route("/api/verify-upload", methods=["POST"])
+def verify_certificate_upload():
+    """Verify uploaded certificate: extract OCR data and match with database"""
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "Empty filename"}), 400
+    
+    if not allowed_file(file.filename):
+        return jsonify({"error": "File type not allowed"}), 400
+
+    try:
+        # Save uploaded file temporarily
+        uploads_dir = Path(__file__).parent / 'uploads' / 'verify'
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        
+        filename = secure_filename(file.filename)
+        unique_name = f"{uuid.uuid4().hex}_{filename}"
+        save_path = uploads_dir / unique_name
+        file.save(str(save_path))
+        
+        # Extract data using Gemini AI
+        print(f"Extracting data from: {save_path}")
+        from ocr_pipeline import normalize_extracted_data
+        extracted_data = process_certificate_file(str(save_path))
+        
+        # Normalize data to match Excel structure (CRITICAL for matching)
+        extracted_data = normalize_extracted_data(extracted_data)
+        
+        print(f"[VERIFICATION] Normalized extracted data fields: {list(extracted_data.keys())}")
+        
+        # Check if extraction had errors
+        if extracted_data.get('error'):
+            return jsonify({
+                "success": False,
+                "error": "Failed to extract certificate data",
+                "details": extracted_data.get('error')
+            }), 400
+        
+        # Search Excel files for matching certificate
+        verification_result = {
+            "extracted_data": extracted_data,
+            "database_match": None,
+            "match_percentage": 0,
+            "verification_status": "unverified",
+            "template_match": False,
+            "alert_sent": False,
+            "matched_file": None
+        }
+        
+        try:
+            # ===== EXCEL VERIFICATION MATCHING =====
+            # CRITICAL: This section matches extracted data against institution Excel files
+            # Field names MUST be consistent with:
+            #   1. ocr_pipeline.py - get_standard_field_names()
+            #   2. ocr_pipeline.py - save_to_excel() columns
+            #   3. calculate_match_percentage_excel() field comparisons
+            # Standard fields: student_name, student_id, university_name, degree_type,
+            #                 course_name, specialization, cgpa, year_of_passing, etc.
+            # ==========================================
+            
+            # Search for matching student in Excel files
+            student_id = extracted_data.get('student_id', '').strip()
+            student_name = extracted_data.get('student_name', '').strip()
+            
+            print(f"[VERIFICATION] Searching for student_id: '{student_id}', name: '{student_name}'")
+            
+            if student_id or student_name:
+                # Get all Excel files in the project root (029 folder)
+                project_root = Path(__file__).parent.parent
+                excel_files = list(project_root.glob('*.xlsx'))
+                
+                print(f"[VERIFICATION] Found {len(excel_files)} Excel file(s) to search")
+                
+                best_match = None
+                best_match_score = 0
+                matched_file_name = None
+                
+                for excel_file in excel_files:
+                    try:
+                        print(f"[VERIFICATION] Searching in file: {excel_file.name}")
+                        
+                        # Read Excel file
+                        import openpyxl
+                        wb = openpyxl.load_workbook(excel_file, data_only=True)
+                        ws = wb.active
+                        
+                        # Get header row to map column names
+                        headers = {}
+                        raw_headers = {}
+                        for idx, cell in enumerate(ws[1], start=1):
+                            if cell.value:
+                                # Normalize header names (handle both "Student Name" and "student_name")
+                                normalized = cell.value.lower().replace(' ', '_').replace('-', '_')
+                                headers[normalized] = idx
+                                raw_headers[idx] = cell.value
+                        
+                        print(f"[VERIFICATION] Excel headers: {list(headers.keys())}")
+                        
+                        # Create column name mapping to handle both old and new formats
+                        # Map variations to standardized field names
+                        column_mapping = {
+                            # Old format mappings
+                            'unicgpa': 'cgpa',
+                            'grade': None,  # Ignore
+                            'completion_date': None,  # Ignore
+                            # New friendly format mappings
+                            'university': 'university_name',
+                            'course': 'course_name',
+                            'semester': 'semester',
+                            'year_of_passing': 'year_of_passing',
+                            'issue_date': 'issue_date',
+                            'certificate_number': 'certificate_number',
+                            'issuing_authority': 'issuing_authority',
+                            'subject_wise_grades': 'subject_grades',
+                            'subjectwise_grades': 'subject_grades',
+                            'source_file': 'file_name',
+                            'upload_date': 'upload_date',
+                            'extracted_at': 'extracted_at'
+                        }
+                        
+                        # Search through rows
+                        for row_idx in range(2, ws.max_row + 1):
+                            row_data = {}
+                            for col_name, col_idx in headers.items():
+                                cell_value = ws.cell(row_idx, col_idx).value
+                                
+                                # Apply column mapping
+                                if col_name in column_mapping:
+                                    mapped_name = column_mapping[col_name]
+                                    if mapped_name is None:
+                                        continue  # Skip this column
+                                    col_name = mapped_name
+                                
+                                row_data[col_name] = str(cell_value) if cell_value else ''
+                            
+                            # Check if this row matches the student ID
+                            excel_student_id = row_data.get('student_id', '').strip()
+                            
+                            if excel_student_id and excel_student_id == student_id:
+                                print(f"[VERIFICATION] Found matching student_id in row {row_idx}")
+                                
+                                # Calculate match percentage
+                                match_score = calculate_match_percentage_excel(extracted_data, row_data)
+                                
+                                print(f"[VERIFICATION] Match score: {match_score}%")
+                                
+                                if match_score > best_match_score:
+                                    best_match_score = match_score
+                                    best_match = row_data
+                                    matched_file_name = excel_file.name
+                        
+                        wb.close()
+                        
+                    except Exception as file_error:
+                        print(f"[VERIFICATION] Error reading {excel_file.name}: {str(file_error)}")
+                        continue
+                
+                if best_match:
+                    verification_result["database_match"] = {
+                        "student_id": best_match.get('student_id', ''),
+                        "student_name": best_match.get('student_name', ''),
+                        "university": best_match.get('university_name', ''),
+                        "course": best_match.get('course_name', ''),
+                        "degree_type": best_match.get('degree_type', ''),
+                        "cgpa": best_match.get('cgpa', ''),
+                        "year_of_passing": best_match.get('year_of_passing', ''),
+                        "issuing_authority": best_match.get('issuing_authority', '')
+                    }
+                    verification_result["match_percentage"] = best_match_score
+                    verification_result["matched_file"] = matched_file_name
+                    
+                    # Determine verification status based on match percentage
+                    if best_match_score >= 85:
+                        verification_result["verification_status"] = "verified"
+                        print(f"[VERIFICATION] Status: VERIFIED (≥85%)")
+                    elif best_match_score >= 70:
+                        verification_result["verification_status"] = "semi-verified"
+                        verification_result["template_match"] = True
+                        verification_result["alert_sent"] = True
+                        print(f"[VERIFICATION] Status: SEMI-VERIFIED (70-84%)")
+                    else:
+                        verification_result["verification_status"] = "mismatch"
+                        print(f"[VERIFICATION] Status: MISMATCH (<70%)")
+                else:
+                    # No matching record found in any Excel file
+                    verification_result["verification_status"] = "not_found"
+                    print(f"[VERIFICATION] Status: NOT FOUND - No records with student_id '{student_id}' in any Excel file")
+            else:
+                print(f"[VERIFICATION] ERROR: No student_id or name extracted from certificate")
+                verification_result["verification_status"] = "error"
+                verification_result["error_message"] = "No student ID or name could be extracted from the certificate"
+                    
+        except Exception as search_error:
+            print(f"[VERIFICATION] Search error: {str(search_error)}")
+            verification_result["verification_status"] = "error"
+            verification_result["error_message"] = f"Search error: {str(search_error)}"
+        
+        # Clean up temporary file
+        try:
+            os.remove(str(save_path))
+        except:
+            pass
+        
+        return jsonify({
+            "success": True,
+            "result": verification_result
+        }), 200
+        
+    except Exception as e:
+        print(f"Verification error: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": "Verification failed",
+            "details": str(e)
+        }), 500
+
+
+def calculate_match_percentage(extracted_data, db_student, db_profile):
+    """Calculate percentage match between extracted data and database records"""
+    total_fields = 0
+    matched_fields = 0
+    
+    # Compare student_id
+    total_fields += 1
+    if extracted_data.get('student_id', '').strip().lower() == db_student.get('student_id', '').strip().lower():
+        matched_fields += 1
+    
+    # Compare student name
+    total_fields += 1
+    extracted_name = extracted_data.get('student_name', '').strip().lower()
+    db_name = db_profile.get('name', '').strip().lower()
+    if extracted_name and db_name:
+        # Fuzzy match for names
+        if extracted_name == db_name or extracted_name in db_name or db_name in extracted_name:
+            matched_fields += 1
+    
+    # Compare university
+    total_fields += 1
+    extracted_uni = extracted_data.get('university_name', '').strip().lower()
+    db_uni = db_profile.get('university', '').strip().lower()
+    if extracted_uni and db_uni:
+        if extracted_uni == db_uni or extracted_uni in db_uni or db_uni in extracted_uni:
+            matched_fields += 1
+    
+    # Compare course
+    total_fields += 1
+    extracted_course = extracted_data.get('course_name', '').strip().lower()
+    db_course = db_profile.get('course', '').strip().lower()
+    if extracted_course and db_course:
+        if extracted_course == db_course or extracted_course in db_course or db_course in extracted_course:
+            matched_fields += 1
+    
+    # Calculate percentage
+    if total_fields > 0:
+        percentage = (matched_fields / total_fields) * 100
+        return round(percentage, 2)
+    
+    return 0.0
+
+
+def calculate_match_percentage_excel(extracted_data, excel_row):
+    """
+    Calculate percentage match between extracted data and Excel row data
+    
+    CRITICAL: Field names must match exactly with:
+    - ocr_pipeline.py get_standard_field_names()
+    - Excel column headers defined in save_to_excel()
+    
+    Standard fields: student_name, student_id, university_name, degree_type,
+                    course_name, specialization, cgpa, year_of_passing, 
+                    issue_date, certificate_number, issuing_authority
+    
+    Args:
+        extracted_data: Normalized data from verification upload
+        excel_row: Row data from Excel file (with matching column names)
+        
+    Returns:
+        float: Match percentage (0-100)
+    """
+    total_fields = 0
+    matched_fields = 0
+    match_details = []  # For debugging
+    
+    # Compare student_id (exact match - highest priority)
+    total_fields += 2  # Weight this more heavily
+    extracted_id = extracted_data.get('student_id', '').strip().lower()
+    excel_id = excel_row.get('student_id', '').strip().lower()
+    if extracted_id == excel_id:
+        matched_fields += 2
+        match_details.append(f"✓ student_id: '{extracted_id}' == '{excel_id}'")
+    else:
+        match_details.append(f"✗ student_id: '{extracted_id}' != '{excel_id}'")
+    
+    # Compare student name
+    total_fields += 1
+    extracted_name = extracted_data.get('student_name', '').strip().lower()
+    excel_name = excel_row.get('student_name', '').strip().lower()
+    if extracted_name and excel_name:
+        # Fuzzy match for names
+        if extracted_name == excel_name or extracted_name in excel_name or excel_name in extracted_name:
+            matched_fields += 1
+            match_details.append(f"✓ student_name: '{extracted_name}' ≈ '{excel_name}'")
+        else:
+            match_details.append(f"✗ student_name: '{extracted_name}' != '{excel_name}'")
+    else:
+        match_details.append(f"⊘ student_name: Empty field")
+    
+    # Compare university
+    total_fields += 1
+    extracted_uni = extracted_data.get('university_name', '').strip().lower()
+    excel_uni = excel_row.get('university_name', '').strip().lower()
+    if extracted_uni and excel_uni:
+        if extracted_uni == excel_uni or extracted_uni in excel_uni or excel_uni in extracted_uni:
+            matched_fields += 1
+            match_details.append(f"✓ university_name: '{extracted_uni}' ≈ '{excel_uni}'")
+        else:
+            match_details.append(f"✗ university_name: '{extracted_uni}' != '{excel_uni}'")
+    else:
+        match_details.append(f"⊘ university_name: Empty field - extracted:'{extracted_uni}', excel:'{excel_uni}'")
+    
+    # Compare course
+    total_fields += 1
+    extracted_course = extracted_data.get('course_name', '').strip().lower()
+    excel_course = excel_row.get('course_name', '').strip().lower()
+    if extracted_course and excel_course:
+        if extracted_course == excel_course or extracted_course in excel_course or excel_course in extracted_course:
+            matched_fields += 1
+            match_details.append(f"✓ course_name: '{extracted_course}' ≈ '{excel_course}'")
+        else:
+            match_details.append(f"✗ course_name: '{extracted_course}' != '{excel_course}'")
+    else:
+        match_details.append(f"⊘ course_name: Empty field")
+    
+    # Compare degree type
+    total_fields += 1
+    extracted_degree = extracted_data.get('degree_type', '').strip().lower()
+    excel_degree = excel_row.get('degree_type', '').strip().lower()
+    if extracted_degree and excel_degree:
+        if extracted_degree == excel_degree or extracted_degree in excel_degree or excel_degree in extracted_degree:
+            matched_fields += 1
+            match_details.append(f"✓ degree_type: '{extracted_degree}' ≈ '{excel_degree}'")
+        else:
+            match_details.append(f"✗ degree_type: '{extracted_degree}' != '{excel_degree}'")
+    else:
+        match_details.append(f"⊘ degree_type: Empty field")
+    
+    # Compare CGPA (allow small variance)
+    total_fields += 1
+    extracted_cgpa = extracted_data.get('cgpa', '').strip()
+    excel_cgpa = excel_row.get('cgpa', '').strip()
+    if extracted_cgpa and excel_cgpa:
+        try:
+            extracted_cgpa_float = float(extracted_cgpa)
+            excel_cgpa_float = float(excel_cgpa)
+            # Consider match if within 0.1 difference
+            if abs(extracted_cgpa_float - excel_cgpa_float) <= 0.1:
+                matched_fields += 1
+                match_details.append(f"✓ cgpa: {extracted_cgpa} ≈ {excel_cgpa}")
+            else:
+                match_details.append(f"✗ cgpa: {extracted_cgpa} != {excel_cgpa}")
+        except:
+            if extracted_cgpa == excel_cgpa:
+                matched_fields += 1
+                match_details.append(f"✓ cgpa: '{extracted_cgpa}' == '{excel_cgpa}'")
+            else:
+                match_details.append(f"✗ cgpa: '{extracted_cgpa}' != '{excel_cgpa}'")
+    else:
+        match_details.append(f"⊘ cgpa: Empty field")
+    
+    # Compare year of passing
+    total_fields += 1
+    extracted_year = extracted_data.get('year_of_passing', '').strip()
+    excel_year = excel_row.get('year_of_passing', '').strip()
+    if extracted_year and excel_year:
+        if extracted_year == excel_year:
+            matched_fields += 1
+            match_details.append(f"✓ year_of_passing: '{extracted_year}' == '{excel_year}'")
+        else:
+            match_details.append(f"✗ year_of_passing: '{extracted_year}' != '{excel_year}'")
+    else:
+        match_details.append(f"⊘ year_of_passing: Empty field")
+    
+    # Compare issuing authority
+    total_fields += 1
+    extracted_issuer = extracted_data.get('issuing_authority', '').strip().lower()
+    excel_issuer = excel_row.get('issuing_authority', '').strip().lower()
+    if extracted_issuer and excel_issuer:
+        if extracted_issuer == excel_issuer or extracted_issuer in excel_issuer or excel_issuer in extracted_issuer:
+            matched_fields += 1
+            match_details.append(f"✓ issuing_authority: '{extracted_issuer}' ≈ '{excel_issuer}'")
+        else:
+            match_details.append(f"✗ issuing_authority: '{extracted_issuer}' != '{excel_issuer}'")
+    else:
+        match_details.append(f"⊘ issuing_authority: Empty field")
+    
+    # Calculate percentage
+    percentage = 0.0
+    if total_fields > 0:
+        percentage = (matched_fields / total_fields) * 100
+        percentage = round(percentage, 2)
+    
+    # Print detailed match breakdown
+    print(f"[MATCH DETAILS] Field-by-field comparison:")
+    for detail in match_details:
+        print(f"  {detail}")
+    print(f"[MATCH SUMMARY] Matched {matched_fields}/{total_fields} fields = {percentage}%")
+    
+    return percentage
 
 
 if __name__ == "__main__":
