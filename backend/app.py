@@ -14,6 +14,52 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
+# File upload configuration
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'tiff', 'bmp', 'doc', 'docx', 'xls', 'xlsx', 'csv'}
+MAX_CONTENT_LENGTH = 100 * 1024 * 1024  #100MB max file size
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
+
+# Create uploads directory if it doesn't exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Create metadata file path
+METADATA_FILE = os.path.join(UPLOAD_FOLDER, 'uploads_metadata.json')
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def save_metadata(metadata):
+    """Save upload metadata to JSON file"""
+    try:
+        existing_data = []
+        if os.path.exists(METADATA_FILE):
+            with open(METADATA_FILE, 'r', encoding='utf-8') as f:
+                existing_data = json.load(f)
+        
+        existing_data.append(metadata)
+        
+        with open(METADATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(existing_data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"Error saving metadata: {str(e)}")
+
+
+def get_all_metadata():
+    """Retrieve all upload metadata"""
+    try:
+        if os.path.exists(METADATA_FILE):
+            with open(METADATA_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return []
+    except Exception as e:
+        print(f"Error reading metadata: {str(e)}")
+        return []
+
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
@@ -153,6 +199,129 @@ def signin():
     except Exception as e:
         print(f"Signin error: {str(e)}")
         return jsonify({"error": f"Login failed: {str(e)}"}), 500
+
+
+@app.route("/api/institution/upload-certificates", methods=["POST"])
+def upload_certificates():
+    """Handle bulk certificate uploads from institutions"""
+    if 'files[]' not in request.files:
+        return jsonify({"error": "No files provided"}), 400
+
+    files = request.files.getlist('files[]')
+    institution_id = request.form.get('institution_id', 'unknown')
+    institution_name = request.form.get('institution_name', 'Unknown Institution')
+    
+    if not files:
+        return jsonify({"error": "No files selected"}), 400
+
+    uploaded_files = []
+    failed_files = []
+    
+    # Create institution-specific subfolder
+    institution_folder = os.path.join(UPLOAD_FOLDER, secure_filename(institution_id))
+    os.makedirs(institution_folder, exist_ok=True)
+    
+    # Create timestamp-based batch folder
+    batch_id = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+    batch_folder = os.path.join(institution_folder, batch_id)
+    os.makedirs(batch_folder, exist_ok=True)
+
+    for file in files:
+        if file and file.filename:
+            if allowed_file(file.filename):
+                try:
+                    # Secure the filename
+                    filename = secure_filename(file.filename)
+                    
+                    # Save the file
+                    file_path = os.path.join(batch_folder, filename)
+                    file.save(file_path)
+                    
+                    # Get file info
+                    file_size = os.path.getsize(file_path)
+                    file_extension = filename.rsplit('.', 1)[1].lower()
+                    
+                    # Prepare metadata
+                    file_metadata = {
+                        'id': f"{batch_id}_{filename}",
+                        'batch_id': batch_id,
+                        'institution_id': institution_id,
+                        'institution_name': institution_name,
+                        'filename': filename,
+                        'file_path': file_path,
+                        'file_size': file_size,
+                        'file_type': file_extension,
+                        'uploaded_at': datetime.utcnow().isoformat(),
+                        'status': 'uploaded',
+                        'processed': False
+                    }
+                    
+                    # Save metadata
+                    save_metadata(file_metadata)
+                    
+                    uploaded_files.append({
+                        'filename': filename,
+                        'size': file_size,
+                        'type': file_extension,
+                        'status': 'success'
+                    })
+                    
+                except Exception as e:
+                    failed_files.append({
+                        'filename': file.filename,
+                        'error': str(e)
+                    })
+            else:
+                failed_files.append({
+                    'filename': file.filename,
+                    'error': 'File type not allowed'
+                })
+
+    return jsonify({
+        'success': True,
+        'batch_id': batch_id,
+        'uploaded': len(uploaded_files),
+        'failed': len(failed_files),
+        'files': uploaded_files,
+        'failed_files': failed_files,
+        'message': f'Successfully uploaded {len(uploaded_files)} file(s)'
+    }), 200
+
+
+@app.route("/api/institution/uploads", methods=["GET"])
+def get_uploads():
+    """Get all uploaded files metadata"""
+    institution_id = request.args.get('institution_id')
+    
+    metadata = get_all_metadata()
+    
+    # Filter by institution if provided
+    if institution_id:
+        metadata = [m for m in metadata if m.get('institution_id') == institution_id]
+    
+    # Group by batch
+    batches = {}
+    for item in metadata:
+        batch_id = item.get('batch_id')
+        if batch_id not in batches:
+            batches[batch_id] = {
+                'batch_id': batch_id,
+                'institution_name': item.get('institution_name'),
+                'uploaded_at': item.get('uploaded_at'),
+                'files': [],
+                'total_files': 0,
+                'processed_files': 0
+            }
+        batches[batch_id]['files'].append(item)
+        batches[batch_id]['total_files'] += 1
+        if item.get('processed'):
+            batches[batch_id]['processed_files'] += 1
+    
+    return jsonify({
+        'success': True,
+        'batches': list(batches.values()),
+        'total_batches': len(batches)
+    }), 200
 
 
 if __name__ == "__main__":

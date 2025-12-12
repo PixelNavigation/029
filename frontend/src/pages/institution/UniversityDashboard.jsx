@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { 
   Building2, 
@@ -22,6 +22,7 @@ import {
   Loader
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
+import { institutionAPI } from '../../lib/api';
 
 export const UniversityDashboard = () => {
   const { user, signOut } = useAuthStore();
@@ -37,76 +38,65 @@ export const UniversityDashboard = () => {
   const [editedDataMap, setEditedDataMap] = useState({});
   const [lastUploadCount, setLastUploadCount] = useState(0);
   const [lastUploadDate, setLastUploadDate] = useState(null);
+  const [uploadError, setUploadError] = useState('');
+  const [recentBatches, setRecentBatches] = useState([]);
 
-  const onDrop = async (acceptedFiles) => {
-    // Helper: try to extract page count from PDF ArrayBuffer using a regex on the file text.
-    const getPdfPageCount = async (file) => {
-      try {
-        const ab = await file.arrayBuffer();
-        // Decode using latin1 to preserve byte values
-        const text = new TextDecoder('latin1').decode(ab);
-        // Look for /Count <num> occurrences and pick the largest (PDFs often contain multiple counts)
-        const re = /\/Count\s+(\d+)/g;
-        let match;
-        let max = 0;
-        while ((match = re.exec(text)) !== null) {
-          const val = parseInt(match[1], 10);
-          if (!Number.isNaN(val) && val > max) max = val;
-        }
-        // Fallback: try to find /N <num> or /Pages <num> patterns if present
-        if (max === 0) {
-          const re2 = /\/N\s+(\d+)/g;
-          while ((match = re2.exec(text)) !== null) {
-            const val = parseInt(match[1], 10);
-            if (!Number.isNaN(val) && val > max) max = val;
-          }
-        }
-        // If still zero, default to 1
-        return Math.min(Math.max(max || 1, 1), 10);
-      } catch (err) {
-        return 1;
+  // Load recent uploads on mount
+  useEffect(() => {
+    loadRecentUploads();
+  }, []);
+
+  const loadRecentUploads = async () => {
+    try {
+      const response = await institutionAPI.getUploads(user?.institutionId || user?.email);
+      if (response.success) {
+        setRecentBatches(response.batches.slice(0, 5)); // Show latest 5 batches
       }
-    };
-
-    // Build expanded file entries: PDFs expand into page-wise entries (max 10), others are single entries
-    const expandedEntries = [];
-    for (const file of acceptedFiles) {
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        const pages = await getPdfPageCount(file);
-        const pageCount = Math.min(pages, 10);
-        for (let p = 0; p < pageCount; p++) {
-          expandedEntries.push({
-            file,
-            id: Math.random().toString(36).substring(7),
-            name: `${file.name} (page ${p + 1})`,
-            size: file.size,
-            type: file.type,
-            page: p + 1,
-            status: 'uploaded'
-          });
-        }
-      } else {
-        expandedEntries.push({
-          file,
-          id: Math.random().toString(36).substring(7),
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          status: 'uploaded'
-        });
-      }
-    }
-
-    setUploadedFiles(prev => [...prev, ...expandedEntries]);
-  // track recent upload info for the UI
-  setLastUploadCount(expandedEntries.length);
-  setLastUploadDate(new Date());
-
-    // Auto-process files if in bulk mode
-    if (uploadMode === 'bulk' && expandedEntries.length > 0) {
-      await processCertificates(expandedEntries);
+    } catch (error) {
+      console.error('Failed to load recent uploads:', error);
     }
   };
+
+  const onDrop = async (acceptedFiles) => {
+    setUploadError('');
+    setIsProcessing(true);
+    
+    try {
+      // Upload files to backend
+      const response = await institutionAPI.uploadCertificates(
+        acceptedFiles,
+        user?.institutionId || user?.email,
+        user?.institutionName || user?.name || 'Unknown Institution'
+      );
+
+      if (response.success) {
+        // Update local state with uploaded files info
+        const uploadedEntries = response.files.map(f => ({
+          id: Math.random().toString(36).substring(7),
+          name: f.filename,
+          size: f.size,
+          type: f.type,
+          status: 'uploaded'
+        }));
+
+        setUploadedFiles(prev => [...prev, ...uploadedEntries]);
+        setLastUploadCount(uploadedEntries.length);
+        setLastUploadDate(new Date());
+
+        // Reload recent batches
+        await loadRecentUploads();
+
+        alert(`Successfully uploaded ${response.uploaded} file(s) to server!\nBatch ID: ${response.batch_id}`);
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setUploadError(error.response?.data?.error || error.message || 'Upload failed. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Removed PDF page count logic since we're now uploading to backend directly
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -352,6 +342,38 @@ export const UniversityDashboard = () => {
                   )}
                 </div>
 
+                {/* Upload Error Display */}
+                {uploadError && (
+                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-start space-x-2">
+                      <X className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-red-800">Upload Failed</p>
+                        <p className="text-sm text-red-700 mt-1">{uploadError}</p>
+                      </div>
+                      <button
+                        onClick={() => setUploadError('')}
+                        className="text-red-400 hover:text-red-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Processing Indicator */}
+                {isProcessing && (
+                  <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <Loader className="h-5 w-5 text-blue-600 animate-spin flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-blue-800">Uploading Files...</p>
+                        <p className="text-xs text-blue-700 mt-1">Please wait while we save your certificates to the server</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
                   <div className="text-center">
                     <FileText className="h-6 w-6 mx-auto mb-2 text-blue-600" />
@@ -553,10 +575,30 @@ export const UniversityDashboard = () => {
                   <span>Certificates Uploaded:</span>
                   <span className="font-medium text-gray-900">{lastUploadCount}</span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center mb-3">
                   <span>Last Upload:</span>
                   <span className="font-medium text-gray-900">{lastUploadDate ? new Date(lastUploadDate).toLocaleString() : '—'}</span>
                 </div>
+                
+                {/* Recent Batches */}
+                {recentBatches.length > 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <p className="text-xs font-medium text-gray-700 mb-2">Recent Batches:</p>
+                    <div className="space-y-2">
+                      {recentBatches.map((batch) => (
+                        <div key={batch.batch_id} className="p-2 bg-gray-50 rounded text-xs">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-medium text-gray-900">{batch.batch_id}</span>
+                            <span className="text-gray-600">{batch.total_files} files</span>
+                          </div>
+                          <div className="text-gray-500">
+                            {new Date(batch.uploaded_at).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
