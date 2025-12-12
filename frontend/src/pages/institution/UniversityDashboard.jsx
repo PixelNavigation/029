@@ -1,15 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { ethers } from 'ethers';
 import { 
   Building2, 
   Upload, 
   FileText, 
   X, 
-  Save, 
-  Send,
-  User,
-  GraduationCap,
-  Calendar,
   FileCheck,
   Award,
   CheckCircle,
@@ -24,6 +20,20 @@ import {
 import { useAuthStore } from '../../store/auth';
 import { institutionAPI } from '../../lib/api';
 import { CertificatePreviewModal } from '../../components/CertificatePreviewModal';
+
+// --- BEGIN BLOCKCHAIN CONSTANTS ---
+// NOTE: For hackathon/demo only. Do NOT expose private keys in production.
+// Configure these in your Vite .env file (VITE_*)
+const CERT_VERIFIER_ADDRESS = import.meta.env.VITE_CERT_VERIFIER_ADDRESS || '';
+const ISSUER_PRIVATE_KEY = import.meta.env.VITE_ISSUER_PRIVATE_KEY || '';
+const RPC_URL =
+  import.meta.env.VITE_RPC_URL || 'https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID';
+
+// Minimal ABI with only the methods we need from the contract
+const CERT_VERIFIER_ABI = [
+  'function registerHash(bytes32 _certificateHash) public',
+];
+// --- END BLOCKCHAIN CONSTANTS ---
 
 export const UniversityDashboard = () => {
   const { user, signOut } = useAuthStore();
@@ -171,71 +181,95 @@ export const UniversityDashboard = () => {
     setPreviewData(updated);
   };
 
-  // Encryption functions
-  const encryptData = async (data) => {
-    // TODO: Implement actual encryption
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return {
-      encryptedData: btoa(JSON.stringify(data)), // Base64 encoding as mock encryption
-      encryptionKey: Math.random().toString(36).substring(2, 15),
-      algorithm: 'AES-256-GCM'
-    };
-  };
-
-  const pushToBlockchain = async (encryptedData) => {
-    // Simulate blockchain transaction
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    return {
-      transactionHash: `0x${Math.random().toString(16).substring(2, 66)}`,
-      blockNumber: Math.floor(Math.random() * 1000000),
-      gasUsed: Math.floor(Math.random() * 100000),
-      timestamp: new Date().toISOString()
-    };
-  };
-
   const handleFinalSubmit = async () => {
     if (!previewData || previewData.length === 0) {
       alert('No processed certificates to submit');
       return;
     }
 
+    // Basic safety check for blockchain config
+    if (!CERT_VERIFIER_ADDRESS || !ISSUER_PRIVATE_KEY || !RPC_URL) {
+      alert(
+        'Blockchain configuration missing. Please set VITE_CERT_VERIFIER_ADDRESS, VITE_ISSUER_PRIVATE_KEY and VITE_RPC_URL in your .env.',
+      );
+      return;
+    }
+
     setIsProcessing(true);
     
     try {
-      // First, confirm and save data to Excel
+      // STEP 1: Confirm and save data to backend (e.g. Excel)
       const saveResponse = await institutionAPI.confirmData(
         previewData,
         user?.institutionName || user?.name || 'Unknown Institution',
         currentBatchId
       );
 
-      if (!saveResponse.success) {
-        throw new Error(saveResponse.error || 'Failed to save data to Excel');
+      if (!saveResponse.success || !Array.isArray(saveResponse.hashes)) {
+        throw new Error(
+          saveResponse.error || 'Failed to save data or retrieve certificate hashes from backend.',
+        );
       }
 
       const filesCopied = saveResponse.verified_files?.length || 0;
-      alert(`Successfully saved ${saveResponse.total_records} record(s) to Excel!\nOriginal files saved: ${filesCopied}\nFile: ${saveResponse.excel_file}`);
+      if (saveResponse.total_records) {
+        alert(
+          `Successfully saved ${saveResponse.total_records} record(s) to Excel!\nOriginal files saved: ${filesCopied}\nFile: ${saveResponse.excel_file}`,
+        );
+      }
+
+      const hashesToRegister = saveResponse.hashes; // each item should be a 0x-prefixed bytes32 hash
+
+      // --- BLOCKCHAIN INTEGRATION START ---
+
+      // 1. Initialize provider and signer (issuer wallet)
+      const provider = new ethers.JsonRpcProvider(RPC_URL);
+      const wallet = new ethers.Wallet(ISSUER_PRIVATE_KEY, provider);
+
+      // 2. Initialize contract instance
+      const contract = new ethers.Contract(
+        CERT_VERIFIER_ADDRESS,
+        CERT_VERIFIER_ABI,
+        wallet,
+      );
 
       const results = [];
-      
-      for (const cert of previewData) {
-        // Encrypt data
-        const encrypted = await encryptData(cert);
-        
-        // Push to blockchain
-        const blockchainResult = await pushToBlockchain(encrypted);
-        
-        results.push({
-          certificateId: cert.file_name,
-          fileName: cert.original_filename || cert.file_name,
-          encryption: encrypted,
-          blockchain: blockchainResult,
-          status: 'completed'
-        });
+      let totalGasUsed = 0n;
+
+      for (const hashHex of hashesToRegister) {
+        try {
+          // 3. Send the transaction to register the hash on-chain
+          const tx = await contract.registerHash(hashHex);
+          const receipt = await tx.wait();
+
+          const gasUsed = receipt.gasUsed ?? 0n;
+          totalGasUsed += gasUsed;
+
+          results.push({
+            hash: hashHex,
+            transactionHash: receipt.hash,
+            blockNumber: receipt.blockNumber,
+            gasUsed: gasUsed.toString(),
+            status: 'completed',
+          });
+        } catch (txError) {
+          console.error(`Blockchain submission failed for hash ${hashHex}:`, txError);
+          results.push({
+            hash: hashHex,
+            status: 'failed',
+            error: txError?.reason || txError?.message || 'Unknown error',
+          });
+        }
       }
-      
+
+      // --- BLOCKCHAIN INTEGRATION END ---
+
       console.log('Blockchain submission results:', results);
-      alert(`Successfully submitted ${results.length} certificates to blockchain!`);
+
+      const successCount = results.filter((r) => r.status === 'completed').length;
+      alert(
+        `Successfully submitted ${successCount} certificates to blockchain!\nTotal Gas Used: ${totalGasUsed.toString()}`,
+      );
       
       // Reset after successful submission
       setProcessedCertificates([]);
