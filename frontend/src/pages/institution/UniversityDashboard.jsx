@@ -70,13 +70,16 @@ export const UniversityDashboard = () => {
       );
 
       if (response.success) {
-        // Update local state with uploaded files info
+        // Update local state with uploaded files info including preview URLs
         const uploadedEntries = response.files.map(f => ({
           id: Math.random().toString(36).substring(7),
-          name: f.filename,
+          name: f.original_filename,
+          savedName: f.saved_filename,
           size: f.size,
           type: f.type,
-          status: 'uploaded'
+          status: 'uploaded',
+          filePath: f.file_path,
+          previewUrl: f.preview_url
         }));
 
         setUploadedFiles(prev => [...prev, ...uploadedEntries]);
