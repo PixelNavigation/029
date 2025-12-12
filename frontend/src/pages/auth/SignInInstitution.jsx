@@ -71,6 +71,15 @@ export default function SignInInstitution() {
     }
   };
 
+  const clearHashKey = () => {
+    setExtractedHashKey('');
+    setKeyFileName('');
+    setError('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleKeyFile = (file) => {
     setError('');
     if (!file) return;
@@ -205,26 +214,59 @@ export default function SignInInstitution() {
         throw new Error('Please upload your institution hash key file');
       }
 
-      if (!keyFileName && !demoPrivateKey && !localStorage.getItem('acvs_demo_univ_priv')) {
-        throw new Error('Please load your hash key file from USB/pendrive before signing in');
+      // Backend API call to verify email, password, and hash key
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${API_URL}/api/auth/institution/signin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          hashKey: extractedHashKey
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Check if it's a hash key verification error
+        if (data.error && data.error.toLowerCase().includes('hash')) {
+          throw new Error('Error in hash key, please provide correct hash key');
+        }
+        throw new Error(data.error || 'Sign in failed');
       }
 
-      // Perform sign and verify
-      const result = await signAndVerify(email);
-      if (!result.verified) throw new Error('Digital signature verification failed');
+      if (!data.success) {
+        throw new Error(data.error || 'Sign in failed');
+      }
 
-      // TODO: Backend API call to verify email, password, and extractedHashKey
-      // For now, creating mock user with hash verification
+      // Optional: Perform digital signature if private key is available
+      let signatureDemo = null;
+      if (demoPrivateKey || localStorage.getItem('acvs_demo_univ_priv')) {
+        try {
+          const result = await signAndVerify(email);
+          if (result.verified) {
+            signatureDemo = { signature: result.signature, message: result.message, publicJwk: result.publicJwk };
+          }
+        } catch (err) {
+          console.log('Digital signature skipped:', err.message);
+        }
+      }
+
+      // Create user object with backend data
       const mockUser = {
-        id: 'univ-1',
+        id: data.institution?.id || 'univ-1',
         email,
         role: 'institution',
-        name: 'University Administrator',
-        institutionName: email.split('@')[1]?.split('.')[0] || 'University',
+        name: data.institution?.contactPersonName || 'University Administrator',
+        institutionName: data.institution?.institutionName || email.split('@')[1]?.split('.')[0] || 'University',
+        institutionCode: data.institution?.institutionCode,
         verified: true,
         hashKey: extractedHashKey,
-        createdAt: new Date().toISOString(),
-        signatureDemo: { signature: result.signature, message: result.message, publicJwk: result.publicJwk }
+        createdAt: data.institution?.createdAt || new Date().toISOString(),
+        signatureDemo: signatureDemo
       };
       const { setUser } = useAuthStore.getState();
       setUser(mockUser);
@@ -320,14 +362,24 @@ export default function SignInInstitution() {
               </div>
               {keyFileName && extractedHashKey && (
                 <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-md">
-                  <div className="flex items-center">
-                    <svg className="h-5 w-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <div>
-                      <p className="text-sm font-medium text-green-900">Hash key loaded successfully</p>
-                      <p className="text-xs text-green-700 mt-0.5">File: {keyFileName}</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <svg className="h-5 w-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <div>
+                        <p className="text-sm font-medium text-green-900">Hash key loaded successfully</p>
+                        <p className="text-xs text-green-700 mt-0.5">File: {keyFileName}</p>
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={clearHashKey}
+                      className="ml-3 inline-flex items-center px-2 py-1 border border-red-300 rounded text-xs font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                      title="Clear and upload new hash key"
+                    >
+                      Clear
+                    </button>
                   </div>
                 </div>
               )}
