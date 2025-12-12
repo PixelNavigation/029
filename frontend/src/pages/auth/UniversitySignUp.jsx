@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Shield, Upload, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Shield, CheckCircle } from 'lucide-react';
 
 export const UniversitySignUp = () => {
-  const [step, setStep] = useState(1); // 1: Basic Info, 2: Documents, 3: Verification
+  const [step, setStep] = useState(1); // 1: Basic Info, 2: Verification
   const [formData, setFormData] = useState({
     // Basic Information
     institutionName: '',
     institutionCode: '',
     email: '',
-    phone: '',
+    website: '',
     address: '',
     city: '',
     state: '',
@@ -28,12 +28,6 @@ export const UniversitySignUp = () => {
     password: '',
     confirmPassword: '',
     
-    // Documents
-    registrationCertificate: null,
-    ugcApproval: null,
-    aicteApproval: null,
-    digitalSignatureCert: null,
-    
     // Agreement
     termsAccepted: false,
     dataProcessingAccepted: false
@@ -41,6 +35,9 @@ export const UniversitySignUp = () => {
   
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [showHashModal, setShowHashModal] = useState(false);
+  const [institutionHash, setInstitutionHash] = useState('');
+  const [institutionCode, setInstitutionCode] = useState('');
   const navigate = useNavigate();
 
   const institutionTypes = [
@@ -107,7 +104,7 @@ export const UniversitySignUp = () => {
       if (!formData.institutionCode.trim()) newErrors.institutionCode = 'Institution code is required';
       if (!formData.email.trim()) newErrors.email = 'Email is required';
       if (!formData.email.includes('@')) newErrors.email = 'Valid email is required';
-      if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
+      if (!formData.website.trim()) newErrors.website = 'Website is required';
       if (!formData.address.trim()) newErrors.address = 'Address is required';
       if (!formData.city.trim()) newErrors.city = 'City is required';
       if (!formData.state) newErrors.state = 'State is required';
@@ -128,12 +125,6 @@ export const UniversitySignUp = () => {
     }
     
     if (stepNumber === 2) {
-      // Document Validation
-      if (!formData.registrationCertificate) newErrors.registrationCertificate = 'Registration certificate is required';
-      if (!formData.digitalSignatureCert) newErrors.digitalSignatureCert = 'Digital signature certificate is required';
-    }
-    
-    if (stepNumber === 3) {
       // Agreement Validation
       if (!formData.termsAccepted) newErrors.termsAccepted = 'You must accept the terms and conditions';
       if (!formData.dataProcessingAccepted) newErrors.dataProcessingAccepted = 'You must accept data processing terms';
@@ -155,27 +146,75 @@ export const UniversitySignUp = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateStep(3)) return;
+    if (!validateStep(2)) return;
     
     setIsLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Show success message and redirect
-      alert('University registration submitted successfully! You will receive a confirmation email within 24 hours.');
-      navigate('/auth/signin', { 
-        state: { 
-          role: 'institution',
-          message: 'Registration submitted. Please check your email for approval status.'
-        }
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${API_URL}/api/auth/institution/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
       });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed');
+      }
+      
+      if (data.success) {
+        // Store the hash and code to display in modal
+        setInstitutionHash(data.institutionHash);
+        setInstitutionCode(data.institutionCode);
+        setShowHashModal(true);
+      }
     } catch (error) {
-      setErrors({ submit: 'Registration failed. Please try again.' });
+      console.error('Registration error:', error);
+      setErrors({ submit: error.message || 'Registration failed. Please try again.' });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDownloadHash = () => {
+    const content = `Institution Registration Details\n\n` +
+      `Institution Name: ${formData.institutionName}\n` +
+      `Institution Code: ${institutionCode}\n` +
+      `Email: ${formData.email}\n` +
+      `Website: ${formData.website}\n\n` +
+      `SHA256 Hash Key:\n${institutionHash}\n\n` +
+      `IMPORTANT: Please save this hash key securely. ` +
+      `You will need this for verification purposes.\n\n` +
+      `Generated on: ${new Date().toLocaleString()}`;
+    
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${institutionCode}_hash_key.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyHash = () => {
+    navigator.clipboard.writeText(institutionHash);
+    alert('Hash key copied to clipboard!');
+  };
+
+  const handleCloseModal = () => {
+    setShowHashModal(false);
+    navigate('/auth/signin', { 
+      state: { 
+        role: 'institution',
+        message: 'Registration completed successfully! Please sign in with your credentials.'
+      }
+    });
   };
 
   const renderStep1 = () => (
@@ -232,19 +271,19 @@ export const UniversitySignUp = () => {
           </div>
           
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-              Phone Number *
+            <label htmlFor="website" className="block text-sm font-medium text-gray-700">
+              Official Website *
             </label>
             <input
-              type="tel"
-              id="phone"
-              name="phone"
-              value={formData.phone}
+              type="url"
+              id="website"
+              name="website"
+              value={formData.website}
               onChange={handleInputChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="+91 XXXXXXXXXX"
+              placeholder="https://www.institution.edu"
             />
-            {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
+            {errors.website && <p className="mt-1 text-sm text-red-600">{errors.website}</p>}
           </div>
           
           <div>
@@ -482,137 +521,6 @@ export const UniversitySignUp = () => {
   const renderStep2 = () => (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Required Documents</h3>
-        <p className="text-sm text-gray-600 mb-6">
-          Please upload the following documents. All documents should be in PDF format and not exceed 10MB each.
-        </p>
-        
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="registrationCertificate" className="block text-sm font-medium text-gray-700">
-              Institution Registration Certificate *
-            </label>
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-              <div className="space-y-1 text-center">
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <div className="flex text-sm text-gray-600">
-                  <label htmlFor="registrationCertificate" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
-                    <span>Upload a file</span>
-                    <input 
-                      id="registrationCertificate" 
-                      name="registrationCertificate" 
-                      type="file" 
-                      accept=".pdf"
-                      onChange={handleInputChange}
-                      className="sr-only" 
-                    />
-                  </label>
-                  <p className="pl-1">or drag and drop</p>
-                </div>
-                <p className="text-xs text-gray-500">PDF up to 10MB</p>
-                {formData.registrationCertificate && (
-                  <p className="text-xs text-green-600">✓ {formData.registrationCertificate.name}</p>
-                )}
-              </div>
-            </div>
-            {errors.registrationCertificate && <p className="mt-1 text-sm text-red-600">{errors.registrationCertificate}</p>}
-          </div>
-          
-          <div>
-            <label htmlFor="digitalSignatureCert" className="block text-sm font-medium text-gray-700">
-              Digital Signature Certificate *
-            </label>
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-              <div className="space-y-1 text-center">
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <div className="flex text-sm text-gray-600">
-                  <label htmlFor="digitalSignatureCert" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
-                    <span>Upload a file</span>
-                    <input 
-                      id="digitalSignatureCert" 
-                      name="digitalSignatureCert" 
-                      type="file" 
-                      accept=".p12,.pfx,.cer,.crt"
-                      onChange={handleInputChange}
-                      className="sr-only" 
-                    />
-                  </label>
-                  <p className="pl-1">or drag and drop</p>
-                </div>
-                <p className="text-xs text-gray-500">.p12, .pfx, .cer, .crt files</p>
-                {formData.digitalSignatureCert && (
-                  <p className="text-xs text-green-600">✓ {formData.digitalSignatureCert.name}</p>
-                )}
-              </div>
-            </div>
-            {errors.digitalSignatureCert && <p className="mt-1 text-sm text-red-600">{errors.digitalSignatureCert}</p>}
-          </div>
-          
-          <div>
-            <label htmlFor="ugcApproval" className="block text-sm font-medium text-gray-700">
-              UGC Approval Letter (if applicable)
-            </label>
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-              <div className="space-y-1 text-center">
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <div className="flex text-sm text-gray-600">
-                  <label htmlFor="ugcApproval" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
-                    <span>Upload a file</span>
-                    <input 
-                      id="ugcApproval" 
-                      name="ugcApproval" 
-                      type="file" 
-                      accept=".pdf"
-                      onChange={handleInputChange}
-                      className="sr-only" 
-                    />
-                  </label>
-                  <p className="pl-1">or drag and drop</p>
-                </div>
-                <p className="text-xs text-gray-500">PDF up to 10MB</p>
-                {formData.ugcApproval && (
-                  <p className="text-xs text-green-600">✓ {formData.ugcApproval.name}</p>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          <div>
-            <label htmlFor="aicteApproval" className="block text-sm font-medium text-gray-700">
-              AICTE Approval Letter (if applicable)
-            </label>
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-              <div className="space-y-1 text-center">
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <div className="flex text-sm text-gray-600">
-                  <label htmlFor="aicteApproval" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
-                    <span>Upload a file</span>
-                    <input 
-                      id="aicteApproval" 
-                      name="aicteApproval" 
-                      type="file" 
-                      accept=".pdf"
-                      onChange={handleInputChange}
-                      className="sr-only" 
-                    />
-                  </label>
-                  <p className="pl-1">or drag and drop</p>
-                </div>
-                <p className="text-xs text-gray-500">PDF up to 10MB</p>
-                {formData.aicteApproval && (
-                  <p className="text-xs text-green-600">✓ {formData.aicteApproval.name}</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderStep3 = () => (
-    <div className="space-y-6">
-      <div>
         <h3 className="text-lg font-medium text-gray-900 mb-4">Review and Confirmation</h3>
         
         <div className="bg-gray-50 rounded-lg p-6 mb-6">
@@ -735,7 +643,7 @@ export const UniversitySignUp = () => {
           {/* Progress Indicator */}
           <div className="mt-8">
             <div className="flex items-center justify-center">
-              {[1, 2, 3].map((stepNumber) => (
+              {[1, 2].map((stepNumber) => (
                 <div key={stepNumber} className="flex items-center">
                   <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
                     step >= stepNumber
@@ -748,7 +656,7 @@ export const UniversitySignUp = () => {
                       stepNumber
                     )}
                   </div>
-                  {stepNumber < 3 && (
+                  {stepNumber < 2 && (
                     <div className={`w-16 h-0.5 ${
                       step > stepNumber ? 'bg-blue-600' : 'bg-gray-300'
                     }`} />
@@ -759,8 +667,7 @@ export const UniversitySignUp = () => {
             <div className="flex justify-center mt-2">
               <div className="flex space-x-16 text-xs text-gray-500">
                 <span className={step >= 1 ? 'text-blue-600 font-medium' : ''}>Basic Info</span>
-                <span className={step >= 2 ? 'text-blue-600 font-medium' : ''}>Documents</span>
-                <span className={step >= 3 ? 'text-blue-600 font-medium' : ''}>Review</span>
+                <span className={step >= 2 ? 'text-blue-600 font-medium' : ''}>Review</span>
               </div>
             </div>
           </div>
@@ -773,7 +680,6 @@ export const UniversitySignUp = () => {
           <form onSubmit={handleSubmit}>
             {step === 1 && renderStep1()}
             {step === 2 && renderStep2()}
-            {step === 3 && renderStep3()}
             
             {/* Navigation Buttons */}
             <div className="flex justify-between pt-6 mt-6 border-t border-gray-200">
@@ -789,7 +695,7 @@ export const UniversitySignUp = () => {
                 <div />
               )}
               
-              {step < 3 ? (
+              {step < 2 ? (
                 <button
                   type="button"
                   onClick={handleNext}

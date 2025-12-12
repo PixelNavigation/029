@@ -1,4 +1,7 @@
 import os
+import json
+import hashlib
+import uuid
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from supabase import create_client
@@ -322,6 +325,83 @@ def get_uploads():
         'batches': list(batches.values()),
         'total_batches': len(batches)
     }), 200
+
+
+@app.route("/api/auth/institution/signup", methods=["POST"])
+def institution_signup():
+    """Handle institution signup - creates account in Supabase and generates SHA256 hash"""
+    if not supabase:
+        return jsonify({"error": "Database not configured"}), 503
+
+    data = request.get_json() or {}
+    
+    # Validate required fields
+    required_fields = ['institutionName', 'institutionCode', 'email', 'password', 'website']
+    missing_fields = [field for field in required_fields if not data.get(field)]
+    
+    if missing_fields:
+        return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
+    
+    try:
+        # Check if institution already exists
+        existing = supabase.table('institutions').select('*').eq('email', data['email']).execute()
+        if existing.data and len(existing.data) > 0:
+            return jsonify({"error": "Institution with this email already exists"}), 409
+        
+        existing_code = supabase.table('institutions').select('*').eq('institution_code', data['institutionCode']).execute()
+        if existing_code.data and len(existing_code.data) > 0:
+            return jsonify({"error": "Institution code already exists"}), 409
+        
+        # Generate SHA256 hash of institution data (for verification)
+        hash_data = {
+            'institutionName': data['institutionName'],
+            'institutionCode': data['institutionCode'],
+            'email': data['email'],
+            'website': data['website'],
+            'establishedYear': data.get('establishedYear', ''),
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        hash_string = json.dumps(hash_data, sort_keys=True)
+        institution_hash = hashlib.sha256(hash_string.encode()).hexdigest()
+        
+        # Insert institution record
+        institution_data = {
+            'institution_name': data['institutionName'],
+            'institution_code': data['institutionCode'],
+            'email': data['email'],
+            'password': data['password'],  # In production, hash this!
+            'website': data['website'],
+            'address': data.get('address', ''),
+            'city': data.get('city', ''),
+            'state': data.get('state', ''),
+            'pincode': data.get('pincode', ''),
+            'established_year': data.get('establishedYear', ''),
+            'institution_type': data.get('institutionType', ''),
+            'affiliated_board': data.get('affiliatedBoard', ''),
+            'contact_person_name': data.get('contactPersonName', ''),
+            'contact_person_email': data.get('contactPersonEmail', ''),
+            'contact_person_phone': data.get('contactPersonPhone', ''),
+            'contact_person_designation': data.get('contactPersonDesignation', ''),
+            'institution_hash': institution_hash,
+            'role': 'institution',
+            'verified': False,
+            'created_at': datetime.utcnow().isoformat()
+        }
+        
+        result = supabase.table('institutions').insert(institution_data).execute()
+        if not (result.data and len(result.data) > 0):
+            return jsonify({"error": "Failed to create institution account"}), 500
+        
+        return jsonify({
+            "success": True,
+            "message": "Institution registered successfully!",
+            "institutionHash": institution_hash,
+            "institutionCode": data['institutionCode']
+        }), 201
+            
+    except Exception as e:
+        print(f"Institution signup error: {str(e)}")
+        return jsonify({"error": f"Registration failed: {str(e)}"}), 500
 
 
 if __name__ == "__main__":
