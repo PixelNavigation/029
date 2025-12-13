@@ -307,7 +307,9 @@ export const LandingPage = () => {
                     <CheckCircle className="h-8 w-8 text-green-600" />
                     <div>
                       <h3 className="text-xl font-bold text-green-800">Certificate Verified</h3>
-                      <p className="text-green-700">Match Percentage: {verificationResult.match_percentage}%</p>
+                      <p className="text-green-700">
+                        Match Percentage: {verificationResult.match_percentage?.toFixed?.(2) ?? verificationResult.match_percentage}%
+                      </p>
                     </div>
                   </>
                 ) : verificationResult.verification_status === 'semi-verified' ? (
@@ -316,7 +318,7 @@ export const LandingPage = () => {
                     <div>
                       <h3 className="text-xl font-bold text-yellow-800">Semi-Verified ✓</h3>
                       <p className="text-yellow-700">
-                        Template matches database records (Match: {verificationResult.match_percentage}%)
+                        Template matches database records (Match: {verificationResult.match_percentage?.toFixed?.(2) ?? verificationResult.match_percentage}%)
                       </p>
                       <p className="text-sm text-yellow-600 mt-1">
                         ✓ The respective university has been alerted for manual verification
@@ -339,7 +341,8 @@ export const LandingPage = () => {
                     <div>
                       <h3 className="text-xl font-bold text-red-800">Verification Failed</h3>
                       <p className="text-red-700">
-                        Certificate data does not match database records
+                        Match Percentage: {(verificationResult.match_percentage?.toFixed?.(2) ?? verificationResult.match_percentage) ?? 0}% –
+                        {' '}Certificate data does not match database records
                       </p>
                     </div>
                   </>

@@ -211,40 +211,59 @@ def verify_certificate_upload(file, calculate_match_percentage_excel):
             verification_result["error_message"] = f"Search error: {str(search_error)}"
             
         # --- PHASE 3: FINAL STATUS DETERMINATION AND MESSAGE ---
-        
-        # Check if the initial success was achieved (Phase 1)
+
+        # Simplified status model for frontend:
+        # - "verified"       : strong match (>= 80%) or blockchain verified
+        # - "semi-verified"  : medium match (>= 60%)
+        # - "not_found"      : no records anywhere
+        # - other values      : treated as failure by UI
+
+        HIGH_MATCH_THRESHOLD = 80.0
+        MEDIUM_MATCH_THRESHOLD = 60.0
+
+        # If blockchain already proved authenticity, treat as verified
         if verification_result["verification_status"] == "blockchain_verified":
-             # Already set above: "Certificate is fully verified against the immutable blockchain record."
-             pass # Do nothing, status is already VERIFIED
+            verification_result["verification_status"] = "verified"
+            verification_result["message"] = (
+                "Certificate is fully verified against the immutable blockchain record. "
+                f"Local database match score: {best_match_score:.2f}%"
+                if best_match is not None
+                else "Certificate is fully verified against the immutable blockchain record."
+            )
 
         elif best_match:
-            # Blockchain FAILED (H_OCR != H_Registered) BUT Student ID/Primary Data Matched in Excel
-            if best_match_score >= 85: 
-                # High confidence match in local database despite blockchain failure (Damage Scenario)
-                verification_result["verification_status"] = "discrepancy_found"
-                verification_result["discrepancy_details"] = (
-                    f"Authentication Failed: The digital signature (H_OCR) does not match the blockchain record. "
-                    f"However, a high-confidence match ({best_match_score}%) for the student's primary data "
-                    f"was found in the institutional registry. The discrepancy is likely due to damage or "
-                    f"illegibility in the document's hashed fields (e.g., subject grades)."
+            # No blockchain proof, but we have a database match
+            if best_match_score >= HIGH_MATCH_THRESHOLD:
+                # High confidence: treat as verified as per requirement
+                verification_result["verification_status"] = "verified"
+                verification_result["message"] = (
+                    f"High-confidence match in institutional records (Match score: {best_match_score:.2f}%). "
+                    "Certificate is considered verified based on database records."
                 )
-                verification_result["suggestion"] = "Contact the institution with the Student ID for manual confirmation of the original record."
-                
-            elif best_match_score >= 70:
-                # Moderate confidence match in local database despite blockchain failure
-                verification_result["verification_status"] = "semi-verified_mismatch"
-                verification_result["discrepancy_details"] = "Blockchain record not found, and local data match is moderate. Review required."
-                verification_result["suggestion"] = "Review the extracted and Excel data fields carefully."
-            
+            elif best_match_score >= MEDIUM_MATCH_THRESHOLD:
+                # Medium confidence: semi-verified
+                verification_result["verification_status"] = "semi-verified"
+                verification_result["message"] = (
+                    f"Partial match with institutional records (Match score: {best_match_score:.2f}%). "
+                    "Manual review recommended."
+                )
             else:
-                # Low confidence match in local database
-                verification_result["verification_status"] = "unverified_mismatch"
-                verification_result["discrepancy_details"] = "No blockchain record found and low confidence in local data match."
-        
+                # Low confidence despite finding a row
+                verification_result["verification_status"] = "failed"
+                verification_result["discrepancy_details"] = (
+                    f"Low-confidence match in institutional records (Match score: {best_match_score:.2f}%). "
+                    "Certificate data does not reliably match the database row."
+                )
+                verification_result["suggestion"] = (
+                    "Please re-scan or contact the issuing institution for manual verification."
+                )
+
         else:
             # No match found anywhere
             verification_result["verification_status"] = "not_found"
-            verification_result["error_message"] = "Certificate not found on the blockchain or in the institutional registry."
+            verification_result["error_message"] = (
+                "Certificate not found on the blockchain or in the institutional registry."
+            )
 
 
     except Exception as e:
