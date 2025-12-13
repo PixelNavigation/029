@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 
 export const LandingPage = () => {
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [verificationData, setVerificationData] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -29,7 +31,7 @@ export const LandingPage = () => {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await fetch('http://localhost:5000/api/verify-upload', {
+      const response = await fetch(`${API_URL}/api/verify-upload`, {
         method: 'POST',
         body: formData
       });
