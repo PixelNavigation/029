@@ -158,43 +158,39 @@ def extract_certificate_data_with_gemini(file_path):
         }
     
 def create_certificate_hash(certificate_data):
-    """
-    Generates a unique SHA-256 hash from the core certificate data fields.
-    
-    Args:
-        certificate_data (dict): Normalized certificate data.
-        
-    Returns:
-        str: The hex representation of the SHA-256 hash.
-    """
-    core_fields = [
-        'student_name', 
-        'student_id', 
-        'university_name', 
-        'degree_type', 
-        'cgpa', 
-        'year_of_passing', 
-        'certificate_number'
-    ]
-    
-    canonical_data = ""
-    for field in core_fields:
-        value = str(certificate_data.get(field, '')).strip().lower()
-        canonical_data += value
-        
-    subject_grades = certificate_data.get('subject_grades', [])
-    if isinstance(subject_grades, list) and subject_grades:
-        # Create a list of 'subject:grade' strings, sort them, and join
-        grade_strings = [
-            f"{sg.get('subject_name', '').strip().lower()}:{sg.get('grade', '').strip().lower()}"
-            for sg in subject_grades
-        ]
-        grade_strings.sort()
-        canonical_data += "".join(grade_strings)
+    """Create a stable SHA-256 hash for a certificate.
 
-    encoded_data = canonical_data.encode('utf-8')
+    As requested, the hash is now based ONLY on:
+      - student_name
+      - student_id
+      - grade/CGPA
+
+    All three components are converted to lowercase and minor spacing
+    differences are ignored so that the same logical data always
+    produces the same hash on both the institution and verifier side.
+    """
+
+    def _norm(value: str) -> str:
+        """Normalize a text value: strip, collapse spaces, lowercase."""
+        if value is None:
+            return ""
+        # Collapse multiple spaces and trim
+        collapsed = re.sub(r"\s+", " ", str(value)).strip()
+        return collapsed.lower()
+
+    student_name = _norm(certificate_data.get("student_name", ""))
+    student_id = _norm(certificate_data.get("student_id", ""))
+
+    # "grade" here can be CGPA or a generic grade field
+    grade_value = certificate_data.get("cgpa") or certificate_data.get("grade") or ""
+    grade = _norm(grade_value)
+
+    # Use a simple, explicit separator to avoid collisions
+    canonical_data = "|".join([student_name, student_id, grade])
+
+    encoded_data = canonical_data.encode("utf-8")
     sha256_hash = hashlib.sha256(encoded_data).hexdigest()
-    
+
     return "0x" + sha256_hash
 
 
