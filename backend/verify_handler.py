@@ -6,19 +6,34 @@ from pathlib import Path
 from flask import jsonify
 from werkzeug.utils import secure_filename
 
+# Essential local imports
 from ocr_pipeline import process_certificate_file, normalize_extracted_data, create_certificate_hash
+
+# --- CRITICAL BLOCKCHAIN IMPORT ---
+# We import from the sibling module `blockchain_service.py` in the same folder.
+try:
+    from blockchain_service import verify_hash_on_blockchain
+except ImportError as e:
+    print(
+        f"WARNING: Cannot import verify_hash_on_blockchain from blockchain_service: {e}. "
+        "Blockchain checks will be disabled."
+    )
+
+    # Safety fallback function: always report hash as not on-chain
+    def verify_hash_on_blockchain(hash_val):
+        return False
+# --- END CRITICAL BLOCKCHAIN IMPORT ---
 
 
 def verify_certificate_upload(file, calculate_match_percentage_excel):
-    """Core logic for certificate verification.
-
-    This function assumes the incoming file has already been validated
-    (presence, filename, and extension) by the Flask route. It saves the
-    file temporarily, runs OCR + normalization, then searches Excel exports
-    in the project root to find the best matching record.
+    """
+    Core logic for certificate verification, performing sequential checks:
+    1. Blockchain Authenticity Check (Hash Match)
+    2. Local Database Match (Student ID/Data Match)
+    3. Final Status Reporting
     """
     try:
-        # Save uploaded file temporarily
+        # --- PHASE 0: Setup and OCR Extraction ---
         uploads_dir = Path(__file__).parent / "uploads" / "verify"
         uploads_dir.mkdir(parents=True, exist_ok=True)
 
@@ -27,7 +42,6 @@ def verify_certificate_upload(file, calculate_match_percentage_excel):
         save_path = uploads_dir / unique_name
         file.save(str(save_path))
 
-        # Extract data using OCR pipeline
         print(f"[VERIFY] Extracting data from: {save_path}")
         extracted_data = process_certificate_file(str(save_path))
         extracted_data = normalize_extracted_data(extracted_data)
@@ -37,17 +51,13 @@ def verify_certificate_upload(file, calculate_match_percentage_excel):
             f"{list(extracted_data.keys())}"
         )
 
-        # Check if extraction had errors
         if extracted_data.get("error"):
             return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Failed to extract certificate data",
-                        "details": extracted_data.get("error"),
-                    }
-                ),
-                400,
+                jsonify({
+                    "success": False,
+                    "error": "Failed to extract certificate data",
+                    "details": extracted_data.get("error"),
+                }), 400,
             )
 
         # Initialize verification result structure
@@ -56,42 +66,58 @@ def verify_certificate_upload(file, calculate_match_percentage_excel):
             "database_match": None,
             "match_percentage": 0,
             "verification_status": "unverified",
+            "is_on_blockchain": False,  # NEW
+            "blockchain_hash": None,    # NEW
             "template_match": False,
             "alert_sent": False,
             "matched_file": None,
+            "discrepancy_details": None, # NEW
+            "suggestion": None,          # NEW
         }
+        
+        # --- PHASE 1: BLOCKCHAIN AUTHENTICITY CHECK ---
+        
+        # 1. Calculate the hash (H_OCR) from the extracted data
+        certificate_hash = create_certificate_hash(extracted_data)
+        verification_result["blockchain_hash"] = certificate_hash
+        
+        # 2. Check the hash against the blockchain (read-only, gas-free)
+        is_on_blockchain = verify_hash_on_blockchain(certificate_hash)
+        verification_result["is_on_blockchain"] = is_on_blockchain
+
+        print(f"[VERIFICATION] Calculated Hash (H_OCR): {certificate_hash}")
+        print(f"[VERIFICATION] Blockchain Status: {'VERIFIED' if is_on_blockchain else 'NOT FOUND'}")
+        
+        # Immediate success if hash is found on the blockchain
+        if is_on_blockchain:
+            verification_result["verification_status"] = "blockchain_verified"
+            verification_result["message"] = "Certificate is fully verified against the immutable blockchain record."
+            # We skip the Excel search here as authenticity is proven, but we will proceed to Phase 2 
+            # to retrieve the local data for display purposes if possible.
+        
+        # --- PHASE 2: LOCAL DATABASE MATCH (Required for data display & discrepancy analysis) ---
+
+        best_match = None
+        best_match_score = 0
+        subject_match_info = {} 
+        matched_file_name = None
+
+        student_id = extracted_data.get("student_id", "").strip()
+        student_name = extracted_data.get("student_name", "").strip()
+        
+        # NOTE: openpyxl must be imported before use
+        import openpyxl 
 
         try:
-            # Search for matching student in Excel files
-            student_id = extracted_data.get("student_id", "").strip()
-            student_name = extracted_data.get("student_name", "").strip()
-
-            print(
-                f"[VERIFICATION] Searching for student_id: "
-                f"'{student_id}', name: '{student_name}'"
-            )
-
             if student_id or student_name:
                 project_root = Path(__file__).parent.parent
                 excel_files = list(project_root.glob("*.xlsx"))
-
-                print(
-                    f"[VERIFICATION] Found {len(excel_files)} "
-                    f"Excel file(s) to search"
-                )
-
-                best_match = None
-                best_match_score = 0
-                matched_file_name = None
-
-                import openpyxl
+                
+                print(f"[VERIFICATION] Found {len(excel_files)} Excel file(s) to search")
 
                 for excel_file in excel_files:
                     try:
-                        print(
-                            f"[VERIFICATION] Searching in file: "
-                            f"{excel_file.name}"
-                        )
+                        print(f"[VERIFICATION] Searching in file: {excel_file.name}")
 
                         wb = openpyxl.load_workbook(excel_file, data_only=True)
                         ws = wb.active
@@ -101,14 +127,11 @@ def verify_certificate_upload(file, calculate_match_percentage_excel):
                         for idx, cell in enumerate(ws[1], start=1):
                             if cell.value:
                                 normalized = (
-                                    str(cell.value)
-                                    .lower()
-                                    .replace(" ", "_")
-                                    .replace("-", "_")
+                                    str(cell.value).lower().replace(" ", "_").replace("-", "_")
                                 )
                                 headers[normalized] = idx
 
-                        # Map variations to standardized field names
+                        # Map variations to standardized field names (kept from your original code)
                         column_mapping = {
                             "unicgpa": "cgpa",
                             "grade": None,
@@ -147,104 +170,114 @@ def verify_certificate_upload(file, calculate_match_percentage_excel):
 
                             excel_student_id = row_data.get("student_id", "").strip()
                             if excel_student_id and excel_student_id == student_id:
-                                match_score, subject_match_info = calculate_match_percentage_excel(
+                                match_score, current_subject_match_info = calculate_match_percentage_excel(
                                     extracted_data, row_data
                                 )
-                                print(
-                                    f"[VERIFICATION] Match score: "
-                                    f"{match_score}%"
-                                )
+                                print(f"[VERIFICATION] Match score: {match_score}%")
 
                                 if match_score > best_match_score:
                                     best_match_score = match_score
                                     best_match = row_data
+                                    subject_match_info = current_subject_match_info
                                     best_match["subject_match_info"] = subject_match_info
                                     matched_file_name = excel_file.name
 
                         wb.close()
 
                     except Exception as file_error:
-                        print(
-                            f"[VERIFICATION] Error reading {excel_file.name}: "
-                            f"{str(file_error)}"
-                        )
+                        print(f"[VERIFICATION] Error reading {excel_file.name}: {str(file_error)}")
                         continue
-
-                if best_match:
-                    verification_result["database_match"] = {
-                        "student_id": best_match.get("student_id", ""),
-                        "student_name": best_match.get("student_name", ""),
-                        "university": best_match.get("university_name", ""),
-                        "course": best_match.get("course_name", ""),
-                        "degree_type": best_match.get("degree_type", ""),
-                        "cgpa": best_match.get("cgpa", ""),
-                        "year_of_passing": best_match.get("year_of_passing", ""),
-                        "issuing_authority": best_match.get("issuing_authority", ""),
-                    }
-                    verification_result["match_percentage"] = best_match_score
-                    verification_result["matched_file"] = matched_file_name
-                    verification_result["subject_match_info"] = best_match.get("subject_match_info", {})
-
-                    if best_match_score >= 85:
-                        verification_result["verification_status"] = "verified"
-                    elif best_match_score >= 70:
-                        verification_result["verification_status"] = "semi-verified"
-                        verification_result["template_match"] = True
-                        verification_result["alert_sent"] = True
-                    else:
-                        verification_result["verification_status"] = "mismatch"
-                else:
-                    verification_result["verification_status"] = "not_found"
-            else:
-                print(
-                    "[VERIFICATION] ERROR: No student_id or name extracted "
-                    "from certificate"
-                )
-                verification_result["verification_status"] = "error"
-                verification_result[
-                    "error_message"
-                ] = "No student ID or name could be extracted from the certificate"
-
+            
+            # --- Populate result structure from best_match (if found) ---
+            if best_match:
+                verification_result["database_match"] = {
+                    "student_id": best_match.get("student_id", ""),
+                    "student_name": best_match.get("student_name", ""),
+                    "university": best_match.get("university_name", ""),
+                    "course": best_match.get("course_name", ""),
+                    "degree_type": best_match.get("degree_type", ""),
+                    "cgpa": best_match.get("cgpa", ""),
+                    "year_of_passing": best_match.get("year_of_passing", ""),
+                    "issuing_authority": best_match.get("issuing_authority", ""),
+                }
+                verification_result["match_percentage"] = best_match_score
+                verification_result["matched_file"] = matched_file_name
+                verification_result["subject_match_info"] = subject_match_info
+            
+            
         except Exception as search_error:
             print(f"[VERIFICATION] Search error: {str(search_error)}")
             verification_result["verification_status"] = "error"
             verification_result["error_message"] = f"Search error: {str(search_error)}"
+            
+        # --- PHASE 3: FINAL STATUS DETERMINATION AND MESSAGE ---
+        
+        # Check if the initial success was achieved (Phase 1)
+        if verification_result["verification_status"] == "blockchain_verified":
+             # Already set above: "Certificate is fully verified against the immutable blockchain record."
+             pass # Do nothing, status is already VERIFIED
 
+        elif best_match:
+            # Blockchain FAILED (H_OCR != H_Registered) BUT Student ID/Primary Data Matched in Excel
+            if best_match_score >= 85: 
+                # High confidence match in local database despite blockchain failure (Damage Scenario)
+                verification_result["verification_status"] = "discrepancy_found"
+                verification_result["discrepancy_details"] = (
+                    f"Authentication Failed: The digital signature (H_OCR) does not match the blockchain record. "
+                    f"However, a high-confidence match ({best_match_score}%) for the student's primary data "
+                    f"was found in the institutional registry. The discrepancy is likely due to damage or "
+                    f"illegibility in the document's hashed fields (e.g., subject grades)."
+                )
+                verification_result["suggestion"] = "Contact the institution with the Student ID for manual confirmation of the original record."
+                
+            elif best_match_score >= 70:
+                # Moderate confidence match in local database despite blockchain failure
+                verification_result["verification_status"] = "semi-verified_mismatch"
+                verification_result["discrepancy_details"] = "Blockchain record not found, and local data match is moderate. Review required."
+                verification_result["suggestion"] = "Review the extracted and Excel data fields carefully."
+            
+            else:
+                # Low confidence match in local database
+                verification_result["verification_status"] = "unverified_mismatch"
+                verification_result["discrepancy_details"] = "No blockchain record found and low confidence in local data match."
+        
+        else:
+            # No match found anywhere
+            verification_result["verification_status"] = "not_found"
+            verification_result["error_message"] = "Certificate not found on the blockchain or in the institutional registry."
+
+
+    except Exception as e:
+        # General error handling
+        print(f"Verification error: {str(e)}")
+        traceback.print_exc()
+        verification_result["verification_status"] = "error"
+        verification_result["error_message"] = f"General processing error: {str(e)}"
+        
+    finally:
         # Clean up temporary file
         try:
             os.remove(str(save_path))
         except Exception:
             pass
 
-        return jsonify({"success": True, "result": verification_result}), 200
+    # Final result return
+    if verification_result["verification_status"] == "error":
+        return jsonify({"success": False, "error": verification_result["error_message"]}), 500
+    
+    return jsonify({"success": True, "result": verification_result}), 200
 
-    except Exception as e:
-        print(f"Verification error: {str(e)}")
-        traceback.print_exc()
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "Verification failed",
-                    "details": str(e),
-                }
-            ),
-            500,
-        )
 
+# --- ESSENTIAL HELPER FUNCTIONS (KEPT FROM ORIGINAL CODE) ---
 
 def calculate_match_percentage_excel(extracted_data, excel_row):
-    """Calculate match percentage between extracted data and Excel row.
-
-    This logic is shared by the verification route in ``app.py`` and lives
-    here alongside the core verification handler.
-    """
+    """Calculate match percentage between extracted data and Excel row."""
     total_fields = 0
     matched_fields = 0
     match_details = []
 
     # Compare student_id (exact match - highest priority)
-    total_fields += 2  # Weight this more heavily
+    total_fields += 2 
     extracted_id = extracted_data.get("student_id", "").strip().lower()
     excel_id = excel_row.get("student_id", "").strip().lower()
     if extracted_id == excel_id:
@@ -407,8 +440,7 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
     else:
         match_details.append("⊘ issuing_authority: Empty field")
 
-    # ===== SUBJECT GRADES COMPARISON =====
-    # Compare subject-wise grades and reduce match % if subjects don't match
+    # ===== SUBJECT GRADES COMPARISON (Keep the complex parsing and comparison logic) =====
     extracted_subjects = extracted_data.get("subject_grades", [])
     excel_subjects_str = excel_row.get("subject_grades", "").strip()
     
@@ -420,7 +452,6 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
     }
     
     if excel_subjects_str:
-        # Parse Excel subject grades string (format: "Subject: Grade (Marks); ...")
         excel_subjects = []
         if isinstance(excel_subjects_str, str) and excel_subjects_str:
             parts = excel_subjects_str.split(';')
@@ -431,12 +462,9 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
                     subj_name = subj_part.strip()
                     grade = grade_part.strip().split('(')[0].strip()
                     
-                    # Try to extract credits from the string if present
                     credits = None
                     if '(' in grade_part and ')' in grade_part:
-                        # Sometimes format is "Grade (Credits)" or "Grade (Marks)"
-                        # We'll try to detect credits pattern
-                        pass
+                        pass 
                     
                     excel_subjects.append({
                         "subject_name": subj_name,
@@ -444,26 +472,18 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
                         "credits": credits
                     })
         
-        # Compare subjects if both exist
         if extracted_subjects and excel_subjects:
-            total_fields += 2  # Weight subject matching
+            total_fields += 2 
             subject_matches = 0
             
-            # Normalize subject names for comparison
             def normalize_subject(name):
                 return name.lower().replace('.', '').replace(',', '').replace('  ', ' ').strip()
             
-            # Create lookup for exact and fuzzy matching
             excel_subject_map = {normalize_subject(s["subject_name"]): s for s in excel_subjects}
-            extracted_subject_names = [normalize_subject(s.get("subject_name", "")) for s in extracted_subjects]
-            
-            # Track which Excel subjects have been used to prevent duplicate matching
             used_excel_subjects = set()
             
-            # Helper function to check if subject is a lab course
             def is_lab_course(name, credits):
                 name_lower = name.lower()
-                # Lab courses typically have "lab" or "laboratory" in name, or have 1 credit
                 is_lab_by_name = 'lab' in name_lower or 'laboratory' in name_lower or 'practical' in name_lower
                 is_lab_by_credits = credits and (str(credits) == '1' or credits == 1)
                 return is_lab_by_name or is_lab_by_credits
@@ -474,65 +494,53 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
                 ext_grade = ext_subj.get("grade", "").strip()
                 ext_credits = ext_subj.get("credits", "")
                 
-                # Convert credits to comparable format
                 try:
                     ext_credits_int = int(ext_credits) if ext_credits else None
                 except:
                     ext_credits_int = None
                 
-                # Try exact match first (with same name)
+                # Try exact match first
                 if ext_name_norm in excel_subject_map and ext_name_norm not in used_excel_subjects:
                     excel_match = excel_subject_map[ext_name_norm]
                     subject_matches += 1
                     used_excel_subjects.add(ext_name_norm)
                     subject_match_info["matched"].append({
-                        "extracted": ext_name,
-                        "excel": excel_match["subject_name"],
-                        "extracted_grade": ext_grade,
-                        "excel_grade": excel_match["grade"]
+                        "extracted": ext_name, "excel": excel_match["subject_name"],
+                        "extracted_grade": ext_grade, "excel_grade": excel_match["grade"]
                     })
                 else:
-                    # Try fuzzy match (partial string match) with credit consideration
+                    # Try fuzzy match
                     found_match = False
-                    best_match = None
-                    best_match_score = 0
+                    best_match_sub = None
+                    best_match_score_sub = 0
                     
                     for excel_name_norm, excel_subj in excel_subject_map.items():
-                        # Skip if already used
                         if excel_name_norm in used_excel_subjects:
                             continue
                         
-                        # Check name similarity
                         is_substring = ext_name_norm in excel_name_norm or excel_name_norm in ext_name_norm
                         similarity_score = similarity_ratio(ext_name_norm, excel_name_norm)
                         
                         if is_substring or similarity_score > 0.7:
-                            # Calculate match score considering both name and credits
                             match_score = similarity_score if not is_substring else 0.9
                             
-                            # Boost score if credits match or both are lab/theory courses
                             ext_is_lab = is_lab_course(ext_name, ext_credits_int)
                             excel_is_lab = is_lab_course(excel_subj["subject_name"], None)
                             
-                            # If both are lab or both are theory, boost the score
                             if ext_is_lab == excel_is_lab:
                                 match_score += 0.2
                             
-                            # If this is a better match than previous candidates, save it
-                            if match_score > best_match_score:
-                                best_match_score = match_score
-                                best_match = (excel_name_norm, excel_subj)
+                            if match_score > best_match_score_sub:
+                                best_match_score_sub = match_score
+                                best_match_sub = (excel_name_norm, excel_subj)
                     
-                    # If we found a good match, use it
-                    if best_match and best_match_score > 0.7:
-                        excel_name_norm, excel_subj = best_match
-                        subject_matches += 0.7  # Partial credit for fuzzy match
+                    if best_match_sub and best_match_score_sub > 0.7:
+                        excel_name_norm, excel_subj = best_match_sub
+                        subject_matches += 0.7
                         used_excel_subjects.add(excel_name_norm)
                         subject_match_info["corrected"].append({
-                            "extracted": ext_name,
-                            "excel": excel_subj["subject_name"],
-                            "extracted_grade": ext_grade,
-                            "excel_grade": excel_subj["grade"],
+                            "extracted": ext_name, "excel": excel_subj["subject_name"],
+                            "extracted_grade": ext_grade, "excel_grade": excel_subj["grade"],
                             "similarity": "fuzzy"
                         })
                         found_match = True
@@ -540,15 +548,11 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
                     if not found_match:
                         subject_match_info["missing_in_excel"].append(ext_name)
             
-            # Check for subjects in Excel but not in extracted (only unused subjects)
             for excel_subj in excel_subjects:
                 excel_name_norm = normalize_subject(excel_subj["subject_name"])
-                # Only add to missing if it wasn't used in any match
                 if excel_name_norm not in used_excel_subjects:
                     subject_match_info["missing_in_extracted"].append(excel_subj["subject_name"])
             
-            # Calculate subject match contribution
-            # Compare against the larger of the two lists for fair scoring
             max_subjects = max(len(extracted_subjects), len(excel_subjects))
             if max_subjects > 0:
                 subject_match_ratio = subject_matches / max_subjects
@@ -577,7 +581,6 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
         f"fields = {percentage}%"
     )
     
-    # Return both percentage and subject match details
     return percentage, subject_match_info
 
 
@@ -590,5 +593,3 @@ def similarity_ratio(str1, str2):
     intersection = set1.intersection(set2)
     union = set1.union(set2)
     return len(intersection) / len(union) if len(union) > 0 else 0.0
-
-

@@ -5,17 +5,6 @@ import { useAuthStore } from '../../store/auth';
 import { institutionAPI } from '../../lib/api';
 import { CertificatePreviewModal } from '../../components/CertificatePreviewModal';
 
-const CERT_VERIFIER_ADDRESS = import.meta.env.VITE_CERT_VERIFIER_ADDRESS || '';
-const ISSUER_PRIVATE_KEY = import.meta.env.VITE_ISSUER_PRIVATE_KEY || '';
-const RPC_URL =
-  import.meta.env.VITE_RPC_URL || 'https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID';
-
-// Minimal ABI with only the methods we need from the contract
-const CERT_VERIFIER_ABI = [
-  'function registerHash(bytes32 _certificateHash) public',
-];
-// --- END BLOCKCHAIN CONSTANTS ---
-
 export const UniversityDashboard = () => {
   const { user, signOut } = useAuthStore();
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -168,14 +157,6 @@ export const UniversityDashboard = () => {
       return;
     }
 
-    // Basic safety check for blockchain config
-    if (!CERT_VERIFIER_ADDRESS || !ISSUER_PRIVATE_KEY || !RPC_URL) {
-      alert(
-        'Blockchain configuration missing. Please set VITE_CERT_VERIFIER_ADDRESS, VITE_ISSUER_PRIVATE_KEY and VITE_RPC_URL in your .env.',
-      );
-      return;
-    }
-
     setIsProcessing(true);
     
     try {
@@ -186,9 +167,9 @@ export const UniversityDashboard = () => {
         currentBatchId
       );
 
-      if (!saveResponse.success || !Array.isArray(saveResponse.hashes)) {
+      if (!saveResponse.success) {
         throw new Error(
-          saveResponse.error || 'Failed to save data or retrieve certificate hashes from backend.',
+          saveResponse.error || 'Failed to save data or register hashes on blockchain.',
         );
       }
 
@@ -198,59 +179,14 @@ export const UniversityDashboard = () => {
           `Successfully saved ${saveResponse.total_records} record(s) to Excel!\nOriginal files saved: ${filesCopied}\nFile: ${saveResponse.excel_file}`,
         );
       }
-
-      const hashesToRegister = saveResponse.hashes; // each item should be a 0x-prefixed bytes32 hash
-
-      // --- BLOCKCHAIN INTEGRATION START ---
-
-      // 1. Initialize provider and signer (issuer wallet)
-      const provider = new ethers.JsonRpcProvider(RPC_URL);
-      const wallet = new ethers.Wallet(ISSUER_PRIVATE_KEY, provider);
-
-      // 2. Initialize contract instance
-      const contract = new ethers.Contract(
-        CERT_VERIFIER_ADDRESS,
-        CERT_VERIFIER_ABI,
-        wallet,
-      );
-
-      const results = [];
-      let totalGasUsed = 0n;
-
-      for (const hashHex of hashesToRegister) {
-        try {
-          // 3. Send the transaction to register the hash on-chain
-          const tx = await contract.registerHash(hashHex);
-          const receipt = await tx.wait();
-
-          const gasUsed = receipt.gasUsed ?? 0n;
-          totalGasUsed += gasUsed;
-
-          results.push({
-            hash: hashHex,
-            transactionHash: receipt.hash,
-            blockNumber: receipt.blockNumber,
-            gasUsed: gasUsed.toString(),
-            status: 'completed',
-          });
-        } catch (txError) {
-          console.error(`Blockchain submission failed for hash ${hashHex}:`, txError);
-          results.push({
-            hash: hashHex,
-            status: 'failed',
-            error: txError?.reason || txError?.message || 'Unknown error',
-          });
-        }
+      // Optional: surface blockchain summary from backend
+      if (saveResponse.blockchain_registrations) {
+        const registeredCount = saveResponse.registered_count ?? 0;
+        alert(
+          `Blockchain status: ${saveResponse.blockchain_status || 'UNKNOWN'}\n` +
+          `Registered hashes: ${registeredCount}/${saveResponse.hashes_submitted?.length || registeredCount}`
+        );
       }
-
-      // --- BLOCKCHAIN INTEGRATION END ---
-
-      console.log('Blockchain submission results:', results);
-
-      const successCount = results.filter((r) => r.status === 'completed').length;
-      alert(
-        `Successfully submitted ${successCount} certificates to blockchain!\nTotal Gas Used: ${totalGasUsed.toString()}`,
-      );
       
       // Reset after successful submission
       setProcessedCertificates([]);

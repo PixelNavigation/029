@@ -1,5 +1,7 @@
 import os
 import re
+import shutil
+import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -197,25 +199,46 @@ def preview_file_handler(institution_name, filename, upload_folder):
         return jsonify({"error": str(e)}), 500
 
 
+try:
+    # Import the blockchain service from the same backend directory
+    from blockchain_service import register_hashes_on_blockchain
+except ImportError as e:
+    # Fallback for development/testing if the blockchain service is not set up
+    print(
+        f"WARNING: Could not import blockchain_service (register_hashes_on_blockchain): {e}. "
+        "Hashes will be SKIPPED."
+    )
+
+    def register_hashes_on_blockchain(hashes):
+        """Fallback: mark all hashes as SKIPPED instead of raising."""
+        return [
+            {"hash": hash_val, "status": "SKIPPED", "tx_hash": "N/A"}
+            for hash_val in hashes
+        ]
+# --- END CRITICAL IMPORTS ---
+
+
 def confirm_and_save_data_handler():
-    """Confirm and save extracted data to Excel, copy originals."""
+    """
+    Confirm and save extracted data to Excel, copy originals, 
+    and register hashes on the blockchain (Issuance).
+    """
     data = request.get_json() or {}
 
     extracted_data = data.get("extracted_data", [])
     institution_name = data.get("institution_name", "Unknown Institution")
-    batch_id = data.get("batch_id")  # currently unused but kept for compatibility
-
+    
     if not extracted_data:
         return jsonify({"error": "No data to save"}), 400
 
     hashes_for_blockchain = []
     for item in extracted_data:
-        # We rely on the hash being present here from the previous upload step
+        # Validate hash format before attempting blockchain transaction
         hash_val = item.get("blockchain_hash")
+        # Hash validation: Must be 0x-prefixed and 66 characters long (32 bytes + 0x)
         if hash_val and hash_val.startswith("0x") and len(hash_val) == 66: 
             hashes_for_blockchain.append(hash_val)
         else:
-            # OPTIONAL: Log a warning or re-calculate hash if needed
             print(f"[WARNING] Skipping record due to invalid hash: {item.get('original_filename')}")
 
     if not hashes_for_blockchain:
@@ -227,15 +250,19 @@ def confirm_and_save_data_handler():
     try:
         from ocr_pipeline import save_to_excel
 
+        # --- 1. LOCAL SAVE OPERATIONS (Must successfully complete before blockchain Tx) ---
         output_dir = str(Path(__file__).parent.parent)
-
         excel_path = save_to_excel(extracted_data, institution_name, output_dir)
-
+        
+        # Setup verified folder path and sanitization
+        safe_institution_name = re.sub(r"[^\w\s-]", "", institution_name)
+        safe_institution_name = re.sub(r"[-\s]+", "_", safe_institution_name)
+        
         verified_folder = (
             Path(__file__).parent
             / "uploads"
             / "verified_originals"
-            / institution_name.replace(" ", "_")
+            / safe_institution_name
         )
         verified_folder.mkdir(parents=True, exist_ok=True)
 
@@ -243,31 +270,21 @@ def confirm_and_save_data_handler():
         for item in extracted_data:
             original_filename = item.get("original_filename")
             if original_filename:
-                safe_institution_name = re.sub(r"[^\w\s-]", "", institution_name)
-                safe_institution_name = re.sub(
-                    r"[-\s]+", "_", safe_institution_name
-                )
+                
                 source_folder = (
                     Path(__file__).parent
                     / "uploads"
                     / "files"
                     / safe_institution_name
                 )
-
-                source_file = None
-                for file in source_folder.glob("*"):
-                    if original_filename in file.name or file.name.endswith(
-                        original_filename
-                    ):
-                        source_file = file
-                        break
+                
+                # Find the saved file using glob
+                source_file = next((f for f in source_folder.glob("*") if original_filename in f.name or f.name.endswith(original_filename)), None)
 
                 if source_file and source_file.exists():
                     student_id = item.get("student_id", "unknown")
                     dest_filename = f"{student_id}_{original_filename}"
                     dest_path = verified_folder / dest_filename
-
-                    import shutil
 
                     shutil.copy2(source_file, dest_path)
 
@@ -279,9 +296,19 @@ def confirm_and_save_data_handler():
                         }
                     )
 
-                    print(
-                        f"[SAVE] Copied original file: {original_filename} -> {dest_path}"
-                    )
+                    print(f"[SAVE] Copied original file: {original_filename} -> {dest_path}")
+        
+        # --- 2. BLOCKCHAIN REGISTRATION CALL ---
+        print(f"[BLOCKCHAIN] Submitting {len(hashes_for_blockchain)} hashes to Sepolia...")
+        
+        # This function sends the transactions using the private key
+        blockchain_results = register_hashes_on_blockchain(hashes_for_blockchain)
+        
+        successful_registrations = sum(1 for res in blockchain_results if res['status'] == 'SUCCESS')
+        
+        print(f"[BLOCKCHAIN SUMMARY] Successfully registered {successful_registrations} of {len(hashes_for_blockchain)} hashes.")
+        
+        # --- END BLOCKCHAIN REGISTRATION ---
 
         if excel_path:
             return (
@@ -292,39 +319,37 @@ def confirm_and_save_data_handler():
                         "total_records": len(extracted_data),
                         "verified_files": copied_files,
                         
-                        # --- CRITICAL RETURN VALUE FOR BLOCKCHAIN ---
-                        "hashes": hashes_for_blockchain,
-                        # ------------------------------------------
+                        # --- RETURN BLOCKCHAIN STATUS ---
+                        "hashes_submitted": hashes_for_blockchain,
+                        "blockchain_status": "SUCCESS" if successful_registrations == len(hashes_for_blockchain) else "PARTIAL_FAILURE",
+                        "blockchain_registrations": blockchain_results,
+                        "registered_count": successful_registrations,
+                        # --------------------------------
 
                         "message": (
-                            f"Successfully saved {len(extracted_data)} record(s) to Excel "
-                            f"and {len(copied_files)} original file(s). Ready for blockchain."
+                            f"Successfully saved {len(extracted_data)} record(s) to Excel, "
+                            f"and registered {successful_registrations} hash(es) on Sepolia!"
                         ),
                     }
                 ),
                 200,
             )
         else:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Failed to save data to Excel",
-                    }
-                ),
-                500,
-            )
+            # Fallback if Excel saving failed but hash submission may have succeeded
+            return jsonify({
+                "success": False,
+                "error": "Failed to save data to Excel, but check blockchain status for hash submissions.",
+                "blockchain_registrations": blockchain_results,
+            }), 500
 
-    except Exception as e:  # pragma: no cover - logging only
-        print(f"Save error: {str(e)}")
-        import traceback
-
+    except Exception as e:
+        print(f"Save and Blockchain error: {str(e)}")
         traceback.print_exc()
         return (
             jsonify(
                 {
                     "success": False,
-                    "error": f"Failed to save data: {str(e)}",
+                    "error": f"Failed to save data or register hashes: {str(e)}",
                 }
             ),
             500,
