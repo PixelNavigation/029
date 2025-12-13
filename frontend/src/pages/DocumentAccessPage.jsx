@@ -52,6 +52,12 @@ export const DocumentAccessPage = () => {
 		);
 	}
 
+	// Only show certificates that are fully verified for public view
+	const verifiedCertificates = certificates.filter((cert) => {
+		const status = (cert.verification_status || cert.status || '').toLowerCase();
+		return status === 'verified';
+	});
+
 	return (
 		<div className="min-h-screen bg-gray-50 py-10">
 			<div className="max-w-4xl mx-auto px-4">
@@ -73,12 +79,12 @@ export const DocumentAccessPage = () => {
 
 				<div className="bg-white rounded-2xl shadow p-6">
 					<h2 className="text-xl font-semibold text-gray-900 mb-4">Verified Certificates</h2>
-					{certificates.length === 0 ? (
+					{verifiedCertificates.length === 0 ? (
 						<p className="text-gray-600">No certificates available for this student.</p>
 					) : (
 						<ul className="space-y-3">
-							{certificates.map((cert) => {
-								const isVerified = (cert.verification_status || cert.status || '').toLowerCase() === 'verified';
+							{verifiedCertificates.map((cert) => {
+								const isVerified = true;
 								return (
 									<li
 										key={cert.id || cert.certificateId || cert.file_name}

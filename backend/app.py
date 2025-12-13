@@ -14,6 +14,19 @@ from verify_handler import (
     verify_certificate_upload as verify_certificate_upload_handler,
     calculate_match_percentage_excel,
 )
+from ocr_pipeline import process_certificate_file, normalize_extracted_data, create_certificate_hash
+
+# Blockchain verification for student uploads (reuses same service as verification flow)
+try:
+    from blockchain_service import verify_hash_on_blockchain
+except ImportError as e:
+    print(
+        f"WARNING: Cannot import verify_hash_on_blockchain for student uploads: {e}. "
+        "Student uploads will skip blockchain checks."
+    )
+
+    def verify_hash_on_blockchain(_hash: str) -> bool:  # type: ignore[override]
+        return False
 from institution_handler import (
     upload_certificates_handler,
     get_uploads_handler,
@@ -325,33 +338,43 @@ def upload_student_certificate():
         return jsonify({"error": "No file selected"}), 400
 
     if file and allowed_file(file.filename):
+        # We'll persist a temp copy for OCR + hashing, then upload to Supabase
+        temp_path = None
         try:
             # Generate unique filename
             file_ext = file.filename.rsplit('.', 1)[1].lower()
             timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
             unique_filename = f"certificates/{student_id}/{document_type}_{timestamp}_{uuid.uuid4().hex}.{file_ext}"
-            
-            # Read file content
-            file_content = file.read()
-            
+
+            # Save a temporary copy for OCR/hash calculation
+            uploads_dir = Path(UPLOAD_FOLDER) / "student_verify"
+            uploads_dir.mkdir(parents=True, exist_ok=True)
+            safe_name = secure_filename(file.filename)
+            temp_path = uploads_dir / f"{uuid.uuid4().hex}_{safe_name}"
+            file.save(str(temp_path))
+
+            # Read file content from disk for Supabase upload
+            with open(temp_path, "rb") as f:
+                file_content = f.read()
+
             # Upload to Supabase Storage using correct Python API
             try:
                 storage = supabase.storage.from_('student-profiles')
-                
+
                 content_type = f'application/{file_ext}' if file_ext == 'pdf' else f'image/{file_ext}'
                 res = storage.upload(
                     path=unique_filename,
                     file=file_content,
                     file_options={"content-type": content_type}
                 )
-                
+
                 print(f"Certificate upload successful: {unique_filename}")
-                
+
             except Exception as upload_err:
                 print(f"Supabase certificate upload error: {str(upload_err)}")
                 import traceback
                 traceback.print_exc()
-                
+
                 # Try without options
                 try:
                     res = storage.upload(path=unique_filename, file=file_content)
@@ -359,10 +382,34 @@ def upload_student_certificate():
                 except Exception as retry_err:
                     print(f"Certificate retry failed: {str(retry_err)}")
                     raise
-            
+
             # Get public URL
             public_url = supabase.storage.from_('student-profiles').get_public_url(unique_filename)
-            
+
+            # --- Blockchain-aware verification on student upload ---
+            is_on_blockchain = False
+            blockchain_hash = None
+            try:
+                extracted_data = process_certificate_file(str(temp_path))
+                extracted_data = normalize_extracted_data(extracted_data)
+
+                if not extracted_data.get("error"):
+                    certificate_hash = create_certificate_hash(extracted_data)
+                    blockchain_hash = certificate_hash
+                    is_on_blockchain = verify_hash_on_blockchain(certificate_hash)
+
+                    print(f"[STUDENT UPLOAD] Calculated Hash (H_OCR): {certificate_hash}")
+                    print(
+                        f"[STUDENT UPLOAD] Blockchain Status: "
+                        f"{'VERIFIED' if is_on_blockchain else 'NOT FOUND'}"
+                    )
+                else:
+                    print(f"[STUDENT UPLOAD] OCR error during hash calculation: {extracted_data.get('error')}")
+            except Exception as verify_err:
+                print(f"[STUDENT UPLOAD] Blockchain check failed: {verify_err}")
+
+            verification_status = 'verified' if is_on_blockchain else 'pending'
+
             # Store certificate metadata in database
             certificate_data = {
                 'student_id': student_id,
@@ -371,9 +418,11 @@ def upload_student_certificate():
                 'file_url': public_url,
                 'file_size': len(file_content),
                 'uploaded_at': datetime.utcnow().isoformat(),
-                'verification_status': 'pending'
+                'verification_status': verification_status,
+                'blockchain_hash': blockchain_hash,
+                'is_on_blockchain': is_on_blockchain,
             }
-            
+
             # Insert into certificates table
             try:
                 cert_result = supabase.table('certificates').insert(certificate_data).execute()
@@ -382,17 +431,26 @@ def upload_student_certificate():
                 print(f"Database insert error: {str(db_err)}")
                 # Continue even if database insert fails - at least file is uploaded
                 certificate_id = None
-            
+
             return jsonify({
                 "success": True,
                 "url": public_url,
                 "certificateId": certificate_id,
-                "fileName": file.filename
+                "fileName": file.filename,
+                "isOnBlockchain": is_on_blockchain,
+                "blockchainHash": blockchain_hash,
             }), 200
 
         except Exception as e:
             print(f"Upload error: {str(e)}")
             return jsonify({"error": f"Failed to upload certificate: {str(e)}"}), 500
+        finally:
+            # Best-effort cleanup of temporary file
+            try:
+                if temp_path and Path(temp_path).exists():
+                    Path(temp_path).unlink()
+            except Exception:
+                pass
     
     return jsonify({"error": "Invalid file type"}), 400
 

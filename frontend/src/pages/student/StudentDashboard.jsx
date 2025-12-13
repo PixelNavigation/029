@@ -53,6 +53,7 @@ export const StudentDashboard = () => {
 
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [submittedDocuments, setSubmittedDocuments] = useState([]);
+  const [storedCertificates, setStoredCertificates] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [dummyQrCode, setDummyQrCode] = useState(null);
@@ -101,6 +102,21 @@ export const StudentDashboard = () => {
       }
     };
     fetchProfile();
+  }, [user?.studentId]);
+
+  // Fetch stored certificates from backend (Supabase)
+  useEffect(() => {
+    const fetchCertificates = async () => {
+      if (!user?.studentId) return;
+      try {
+        const res = await authAPI.getCertificates(user.studentId);
+        const certs = res?.certificates || res?.data || [];
+        setStoredCertificates(certs);
+      } catch (err) {
+        console.warn('Failed to fetch certificates', err);
+      }
+    };
+    fetchCertificates();
   }, [user?.studentId]);
   const onDrop = (acceptedFiles) => {
     const files = acceptedFiles.map((file) => ({
@@ -191,6 +207,9 @@ export const StudentDashboard = () => {
           );
 
           if (response.success) {
+            const backendVerified = response.isOnBlockchain === true;
+            const verificationStatus = backendVerified ? 'verified' : 'unable-to-verify';
+
             uploadResults.push({
               id: response.certificateId,
               name: file.name,
@@ -198,8 +217,10 @@ export const StudentDashboard = () => {
               url: response.url,
               size: file.size,
               submittedAt: new Date().toISOString(),
-              verificationStatus: 'pending',
-              verificationId: response.certificateId
+              verificationStatus,
+              verificationId: response.certificateId,
+              isOnBlockchain: response.isOnBlockchain ?? false,
+              blockchainHash: response.blockchainHash || null,
             });
             setUploadProgress(prev => ({ ...prev, [file.id]: 'success' }));
           }
@@ -210,6 +231,15 @@ export const StudentDashboard = () => {
       }
 
       if (uploadResults.length > 0) {
+        // Refresh stored certificates from backend so "My Documents" shows latest
+        try {
+          const res = await authAPI.getCertificates(user.studentId);
+          const certs = res?.certificates || res?.data || [];
+          setStoredCertificates(certs);
+        } catch (err) {
+          console.warn('Failed to refresh certificates after upload', err);
+        }
+
         setSubmittedDocuments((prev) => [...prev, ...uploadResults]);
         setShowVerificationResults(true);
 
@@ -504,84 +534,42 @@ export const StudentDashboard = () => {
                 <FileText className="h-5 w-5 text-green-600" />
                 <h3 className="text-lg font-semibold text-gray-900">My Documents</h3>
                 <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                  {2 + submittedDocuments.length}
+                  {storedCertificates.length}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {/* Permanent Documents - SSC Memo */}
-                <div className="p-4 border border-green-200 bg-green-50 rounded-lg hover:shadow-md transition-all">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 mt-1">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900" title="SSC Memo_shash.pdf">
-                        SSC Memo_shash.pdf
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Academic Records
-                      </p>
-                      
-                      <div className="inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        ✓ Verified
-                      </div>
-                      
-                      <div className="mt-2 text-xs text-gray-500 space-y-1">
-                        <p>Size: 0.13 MB</p>
-                        <p>Uploaded: {new Date().toLocaleDateString()}</p>
-                        <p>ID: VER001SSC</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* Stored certificates from Supabase */}
+                {storedCertificates.map((cert) => {
+                  const status = (cert.verification_status || '').toLowerCase();
+                  const isVerified = status === 'verified';
+                  const isSemiVerified = status === 'semi-verified';
+                  const cardClasses = isVerified
+                    ? 'bg-green-50 border-green-200'
+                    : isSemiVerified
+                    ? 'bg-yellow-50 border-yellow-200'
+                    : 'bg-red-50 border-red-200';
+                  const badgeClasses = isVerified
+                    ? 'bg-green-100 text-green-800'
+                    : isSemiVerified
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : 'bg-red-100 text-red-800';
+                  const label = isVerified
+                    ? '✓ Verified'
+                    : isSemiVerified
+                    ? '⚠ Semi-verified'
+                    : '✗ Unable to Verify';
 
-                {/* Permanent Documents - Inter Short Memo */}
-                <div className="p-4 border border-green-200 bg-green-50 rounded-lg hover:shadow-md transition-all">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 mt-1">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900" title="Inter Short Memo_shash.pdf">
-                        Inter Short Memo_shash.pdf
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Academic Records
-                      </p>
-                      
-                      <div className="inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        ✓ Verified
-                      </div>
-                      
-                      <div className="mt-2 text-xs text-gray-500 space-y-1">
-                        <p>Size: 0.10 MB</p>
-                        <p>Uploaded: {new Date().toLocaleDateString()}</p>
-                        <p>ID: VER002INT</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Dynamic Submitted Documents */}
-                {submittedDocuments.map((doc) => (
+                  return (
                   <div
-                    key={doc.verificationId}
-                    className={`p-4 border rounded-lg transition-all hover:shadow-md ${
-                      doc.verificationStatus === 'verified'
-                        ? 'bg-green-50 border-green-200'
-                        : doc.verificationStatus === 'semi-verified'
-                        ? 'bg-yellow-50 border-yellow-200'
-                        : 'bg-red-50 border-red-200'
-                    }`}
+                    key={cert.id}
+                    className={`p-4 border rounded-lg transition-all hover:shadow-md ${cardClasses}`}
                   >
                     <div className="flex items-start space-x-3">
                       <div className="flex-shrink-0 mt-1">
-                        {doc.verificationStatus === 'verified' ? (
+                        {isVerified ? (
                           <CheckCircle className="h-5 w-5 text-green-600" />
-                        ) : doc.verificationStatus === 'semi-verified' ? (
+                        ) : isSemiVerified ? (
                           <AlertTriangle className="h-5 w-5 text-yellow-600" />
                         ) : (
                           <XCircle className="h-5 w-5 text-red-600" />
@@ -589,37 +577,31 @@ export const StudentDashboard = () => {
                       </div>
                       
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate" title={doc.name}>
-                          {doc.name}
+                        <p className="text-sm font-medium text-gray-900 truncate" title={cert.file_name}>
+                          {cert.file_name}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          {doc.documentType}
+                          {cert.document_type || 'Certificate'}
                         </p>
                         
-                        <div className={`inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium ${
-                          doc.verificationStatus === 'verified'
-                            ? 'bg-green-100 text-green-800'
-                            : doc.verificationStatus === 'semi-verified'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {doc.verificationStatus === 'verified'
-                            ? '✓ Verified'
-                            : doc.verificationStatus === 'semi-verified'
-                            ? '⚠ Semi-verified'
-                            : '✗ Unable to Verify'
-                          }
+                        <div className={`inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium ${badgeClasses}`}>
+                          {label}
                         </div>
                         
                         <div className="mt-2 text-xs text-gray-500 space-y-1">
-                          <p>Size: {(doc.size / 1024 / 1024).toFixed(2)} MB</p>
-                          <p>Submitted: {new Date(doc.submittedAt).toLocaleDateString()}</p>
-                          <p>ID: {doc.verificationId}</p>
+                          {cert.file_size != null && (
+                            <p>Size: {formatFileSize(cert.file_size)}</p>
+                          )}
+                          {cert.uploaded_at && (
+                            <p>Uploaded: {new Date(cert.uploaded_at).toLocaleDateString()}</p>
+                          )}
+                          <p>ID: {cert.id}</p>
                         </div>
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Summary Statistics */}
@@ -627,19 +609,22 @@ export const StudentDashboard = () => {
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div className="bg-green-50 p-3 rounded-lg">
                     <div className="text-lg font-semibold text-green-600">
-                      {2 + submittedDocuments.filter(d => d.verificationStatus === 'verified').length}
+                      {storedCertificates.filter(c => (c.verification_status || '').toLowerCase() === 'verified').length}
                     </div>
                     <div className="text-sm text-green-600">Verified</div>
                   </div>
                   <div className="bg-yellow-50 p-3 rounded-lg">
                     <div className="text-lg font-semibold text-yellow-600">
-                      {submittedDocuments.filter(d => d.verificationStatus === 'semi-verified').length}
+                      {storedCertificates.filter(c => (c.verification_status || '').toLowerCase() === 'semi-verified').length}
                     </div>
                     <div className="text-sm text-yellow-600">Semi-verified</div>
                   </div>
                   <div className="bg-red-50 p-3 rounded-lg">
                     <div className="text-lg font-semibold text-red-600">
-                      {submittedDocuments.filter(d => d.verificationStatus === 'unable-to-verify').length}
+                      {storedCertificates.filter(c => {
+                        const s = (c.verification_status || '').toLowerCase();
+                        return s && s !== 'verified' && s !== 'semi-verified';
+                      }).length}
                     </div>
                     <div className="text-sm text-red-600">Unable to Verify</div>
                   </div>
