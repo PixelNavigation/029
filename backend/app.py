@@ -25,7 +25,18 @@ from institution_handler import (
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
+# Explicitly allow local dev and devtunnel frontends
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5000",
+    "http://127.0.0.1:5000",
+    "https://0cqvrx6t-5173.inc1.devtunnels.ms",
+    "https://0cqvrx6t-5000.inc1.devtunnels.ms",
+]
+
+CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}}, supports_credentials=True)
 
 # File upload configuration
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -388,21 +399,117 @@ def upload_student_certificate():
 
 @app.route("/api/student/certificates/<student_id>", methods=["GET"])
 def get_student_certificates(student_id):
-    """Get all certificates for a student"""
+    """Get all certificates for a student.
+
+    For now, returns hardcoded demo certificates when the Supabase table
+    is not available so the public portal always has data to show.
+    """
+
+    # Hardcoded demo certificates for UI/QR flows
+    demo_certificates = [
+        {
+            "id": 1,
+            "student_id": student_id,
+            "file_name": "SSC_Memo_demo.pdf",
+            "file_url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+            "uploaded_at": "2024-01-10T09:30:00Z",
+            "verification_status": "verified",
+        },
+        {
+            "id": 2,
+            "student_id": student_id,
+            "file_name": "Inter_Short_Memo_demo.pdf",
+            "file_url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+            "uploaded_at": "2024-02-20T11:15:00Z",
+            "verification_status": "verified",
+        },
+    ]
+
+    # If Supabase isn't configured, just return demo data
+    if not supabase:
+        return jsonify({"success": True, "certificates": demo_certificates}), 200
+
+    try:
+        result = supabase.table("certificates").select("*").eq("student_id", student_id).execute()
+        data = result.data or []
+
+        # If the table exists but no rows yet, still fall back to demos
+        if not data:
+            data = demo_certificates
+
+        return jsonify({"success": True, "certificates": data}), 200
+
+    except Exception as e:
+        # If the certificates table doesn't exist yet, serve demo data instead of 500
+        error_str = str(e)
+        print(f"Fetch certificates error: {error_str}")
+        if "public.certificates" in error_str or "PGRST205" in error_str:
+            print("Certificates table missing; returning demo certificates.")
+            return jsonify({"success": True, "certificates": demo_certificates}), 200
+
+        return jsonify({"error": f"Failed to fetch certificates: {error_str}"}), 500
+
+
+@app.route("/api/public_profiles/<student_id>", methods=["GET"])
+def get_public_profile(student_id):
+    """Get public profile for a student by student_id.
+
+    Returns a single profile object. If no public profile exists but the student
+    record is present, a minimal profile is synthesized from the students table.
+    """
     if not supabase:
         return jsonify({"error": "Database not configured"}), 503
 
     try:
-        result = supabase.table('certificates').select('*').eq('student_id', student_id).execute()
-        
-        return jsonify({
-            "success": True,
-            "certificates": result.data
-        }), 200
+        # Try to fetch from public_profiles first
+        profile_result = (
+            supabase
+            .table("public_profiles")
+            .select("*")
+            .eq("student_id", student_id)
+            .maybe_single()
+            .execute()
+        )
+
+        profile_data = profile_result.data if profile_result and profile_result.data else None
+
+        # If no explicit public profile, fall back to basic student record
+        if not profile_data:
+            student_result = (
+                supabase
+                .table("students")
+                .select("*")
+                .eq("student_id", student_id)
+                .maybe_single()
+                .execute()
+            )
+
+            student = student_result.data if student_result and student_result.data else None
+            if not student:
+                return jsonify({"error": "Profile not found"}), 404
+
+            profile_data = {
+                "student_id": student.get("student_id"),
+                "name": student.get("name") or "",
+                "university": "",
+                "course": "",
+                "year": "",
+                "profile_photo": "",
+                "social_links": {},
+                "bio": "",
+            }
+
+        # Ensure key public fields are present; use demo defaults if missing
+        profile_data["email"] = profile_data.get("email") or "babelgautam16@gmail.com"
+        profile_data["course"] = profile_data.get("course") or "CSE"
+        profile_data["year"] = profile_data.get("year") or "4th Year"
+        profile_data["university"] = profile_data.get("university") or "Mecs"
+
+        return jsonify(profile_data), 200
 
     except Exception as e:
-        print(f"Fetch error: {str(e)}")
-        return jsonify({"error": f"Failed to fetch certificates: {str(e)}"}), 500
+        print(f"Public profile fetch error: {str(e)}")
+        return jsonify({"error": f"Failed to fetch public profile: {str(e)}"}), 500
 
 
 @app.route("/api/institution/upload-certificates", methods=["POST"])

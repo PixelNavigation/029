@@ -12,6 +12,7 @@ import { StudentApplicationPortal } from './pages/student/StudentApplicationPort
 import { UniversityDashboard } from './pages/institution/UniversityDashboard';
 import { CentralAuthorityDashboard } from './pages/admin/CentralAuthorityDashboard';
 import VerificationPage from './pages/VerificationPage';
+import DocumentAccessPage from './pages/DocumentAccessPage';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -52,6 +53,7 @@ function App() {
             <Route path="/auth/signup-student" element={<SignUpStudent />} />
             <Route path="/auth/university-signup" element={<UniversitySignUp />} />
             <Route path="/verify" element={<VerificationPage />} />
+            <Route path="/document-access/:studentId" element={<DocumentAccessPage />} />
             
             {/* Protected Routes */}
             <Route 

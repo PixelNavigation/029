@@ -74,8 +74,8 @@ export const StudentDashboard = () => {
   useEffect(() => {
     const generate = async () => {
       try {
-        const payload = { name: displayUser.name, studentId: displayUser.studentId };
-        const dataUrl = await generateQrCode(JSON.stringify(payload), { size: 300 });
+        const profileUrl = `${window.location.origin}/document-access/${displayUser.studentId}`;
+        const dataUrl = await generateQrCode(profileUrl, { size: 300 });
         setDummyQrCode(dataUrl);
       } catch (err) {
         console.error('generate QR error', err);
@@ -241,41 +241,9 @@ export const StudentDashboard = () => {
 
     setGeneratingQr(true);
     try {
-      const verifiedDocs = submittedDocuments.filter((d) => d.verificationStatus === 'verified');
+      const profileUrl = `${window.location.origin}/document-access/${displayUser.studentId}`;
 
-      const verificationData = {
-        type: 'DOCUMENT_VERIFICATION',
-        version: '1.0',
-        studentInfo: {
-          id: displayUser.studentId,
-          name: displayUser.name,
-          email: displayUser.email,
-          university: displayUser.university,
-          course: displayUser.course,
-          year: displayUser.year
-        },
-        verification: {
-          total: submittedDocuments.length,
-          verified: verifiedDocs.length,
-          semiVerified: submittedDocuments.filter((d) => d.verificationStatus === 'semi-verified').length,
-          unableToVerify: submittedDocuments.filter((d) => d.verificationStatus === 'unable-to-verify').length,
-          verifiedDocuments: verifiedDocs.map((doc) => ({
-            name: doc.name,
-            type: doc.documentType,
-            verificationId: doc.verificationId,
-            submittedAt: doc.submittedAt,
-            status: 'VERIFIED',
-            hash: `sha256_${doc.verificationId}`,
-            size: doc.size,
-            fileExtension: doc.name.split('.').pop().toLowerCase(),
-            previewAvailable: ['pdf', 'jpg', 'jpeg', 'png'].includes(doc.name.split('.').pop().toLowerCase())
-          }))
-        },
-        issuedAt: new Date().toISOString(),
-        signature: `ACVS_${Date.now()}_${currentUser.studentId}`
-      };
-
-      const dataUrl = await generateQrCode(verificationData, { size: 512 });
+      const dataUrl = await generateQrCode(profileUrl, { size: 512 });
       setQrCodeDataUrl(dataUrl);
       setShowQrModal(true);
     } catch (error) {
@@ -292,42 +260,10 @@ export const StudentDashboard = () => {
     }
 
     try {
-      const verifiedDocs = submittedDocuments.filter((d) => d.verificationStatus === 'verified');
-
-      const qrPayload = {
-        type: 'DOCUMENT_VERIFICATION',
-        version: '1.0',
-        studentInfo: {
-          id: displayUser.studentId,
-          name: displayUser.name,
-          email: displayUser.email,
-          university: displayUser.university,
-          course: displayUser.course,
-          year: displayUser.year
-        },
-        verification: {
-          total: submittedDocuments.length,
-          verified: verifiedDocs.length,
-          semiVerified: submittedDocuments.filter((d) => d.verificationStatus === 'semi-verified').length,
-          unableToVerify: submittedDocuments.filter((d) => d.verificationStatus === 'unable-to-verify').length,
-          verifiedDocuments: verifiedDocs.map((doc) => ({
-            name: doc.name,
-            type: doc.documentType,
-            verificationId: doc.verificationId,
-            submittedAt: doc.submittedAt,
-            status: 'VERIFIED',
-            hash: `sha256_${doc.verificationId}`,
-            size: doc.size,
-            fileExtension: doc.name.split('.').pop().toLowerCase(),
-            previewAvailable: ['pdf', 'jpg', 'jpeg', 'png'].includes(doc.name.split('.').pop().toLowerCase())
-          }))
-        },
-        issuedAt: new Date().toISOString(),
-        signature: `ACVS_${Date.now()}_${currentUser.studentId}`
-      };
+      const profileUrl = `${window.location.origin}/document-access/${displayUser.studentId}`;
 
       await downloadQrCode(
-        qrPayload,
+        profileUrl,
         `${(displayUser.name || 'student').replace(/\s+/g, '_')}_verified_documents.png`,
         { size: 400 }
       );

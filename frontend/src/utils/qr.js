@@ -2,8 +2,13 @@ import QRCode from 'qrcode';
 
 /**
  * Encode data as QR code payload string
+ * - If payload is a string, use it directly (e.g. URL)
+ * - Otherwise JSON-encode the object
  */
 export const encodeQrPayload = (payload) => {
+  if (typeof payload === 'string') {
+    return payload;
+  }
   return JSON.stringify(payload);
 };
 
