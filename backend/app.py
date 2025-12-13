@@ -615,14 +615,14 @@ def institution_signup():
 
 @app.route("/api/auth/institution/signin", methods=["POST"])
 def institution_signin():
-    """Handle institution signin - verifies email, password, and hash key"""
+    """Handle institution signin - verifies email, password, hash key, and institution type"""
     if not supabase:
         return jsonify({"error": "Database not configured"}), 503
 
     data = request.get_json() or {}
     
     # Validate required fields
-    required_fields = ['email', 'password', 'hashKey']
+    required_fields = ['email', 'password', 'hashKey', 'institutionType']
     missing_fields = [field for field in required_fields if not data.get(field)]
     
     if missing_fields:
@@ -641,6 +641,13 @@ def institution_signin():
         if institution.get('password') != data['password']:
             return jsonify({"error": "Invalid email or password"}), 401
         
+        # Verify institution type
+        stored_institution_type = institution.get('institution_type', '')
+        provided_institution_type = data.get('institutionType', '')
+        
+        if stored_institution_type != provided_institution_type:
+            return jsonify({"error": "Institution type does not match. Please select the correct institution type."}), 401
+        
         # Verify hash key
         if institution.get('institution_hash') != data['hashKey']:
             return jsonify({"error": "Error in hash key, please provide correct hash key"}), 401
@@ -654,6 +661,7 @@ def institution_signin():
                 "institutionName": institution.get('institution_name'),
                 "institutionCode": institution.get('institution_code'),
                 "email": institution.get('email'),
+                "institutionType": institution.get('institution_type'),
                 "contactPersonName": institution.get('contact_person_name'),
                 "verified": institution.get('verified', False),
                 "createdAt": institution.get('created_at')

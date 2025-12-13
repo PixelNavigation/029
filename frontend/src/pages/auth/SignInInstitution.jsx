@@ -13,6 +13,7 @@ const arrayBufferToBase64 = (buffer) => {
 export default function SignInInstitution() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [institutionType, setInstitutionType] = useState('');
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState('');
   const [keyFileName, setKeyFileName] = useState('');
@@ -20,6 +21,17 @@ export default function SignInInstitution() {
   const [demoPrivateKey, setDemoPrivateKey] = useState('');
   const [demoPublicKey, setDemoPublicKey] = useState('');
   const fileInputRef = useRef(null);
+
+  const institutionTypes = [
+    'School',
+    'College',
+    'Central University',
+    'State University',
+    'Deemed University',
+    'Private University',
+    'Affiliated College',
+    'Autonomous College'
+  ];
 
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -210,6 +222,10 @@ export default function SignInInstitution() {
         throw new Error('Please enter your password');
       }
 
+      if (!institutionType) {
+        throw new Error('Please select your institution type');
+      }
+
       if (!extractedHashKey) {
         throw new Error('Please upload your institution hash key file');
       }
@@ -224,7 +240,8 @@ export default function SignInInstitution() {
         body: JSON.stringify({
           email,
           password,
-          hashKey: extractedHashKey
+          hashKey: extractedHashKey,
+          institutionType
         }),
       });
 
@@ -307,6 +324,26 @@ export default function SignInInstitution() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl sm:rounded-lg sm:px-10">
           <form className="space-y-6" onSubmit={handleSignIn}>
+
+            <div>
+              <label htmlFor="institution-type" className="block text-sm font-medium text-gray-700">Institution Type</label>
+              <div className="mt-1">
+                <select
+                  id="institution-type"
+                  name="institutionType"
+                  required
+                  value={institutionType}
+                  onChange={(e) => setInstitutionType(e.target.value)}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                >
+                  <option value="">Select institution type</option>
+                  {institutionTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div>
               <label htmlFor="institution-email" className="block text-sm font-medium text-gray-700">Email address</label>
               <div className="mt-1">

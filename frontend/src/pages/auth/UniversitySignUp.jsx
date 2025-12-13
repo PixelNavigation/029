@@ -40,18 +40,14 @@ export const UniversitySignUp = () => {
   const navigate = useNavigate();
 
   const institutionTypes = [
+    'School',
+    'College',
     'Central University',
     'State University',
     'Deemed University',
     'Private University',
-    'Institute of National Importance',
-    'Autonomous College',
     'Affiliated College',
-    'Technical Institute',
-    'Medical College',
-    'Engineering College',
-    'Management Institute',
-    'Arts & Science College'
+    'Autonomous College'
   ];
 
   const statesOfIndia = [
