@@ -396,7 +396,22 @@ export const LandingPage = () => {
             {verificationResult.extracted_data.subject_grades && 
              verificationResult.extracted_data.subject_grades.length > 0 && (
               <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">Subject-wise Grades</h3>
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                  Subject-wise Grades
+                  {verificationResult.subject_match_info && (
+                    <span className="ml-3 text-sm text-gray-600">
+                      {verificationResult.subject_match_info.matched?.length > 0 && (
+                        <span className="text-green-600">✓ {verificationResult.subject_match_info.matched.length} matched</span>
+                      )}
+                      {verificationResult.subject_match_info.corrected?.length > 0 && (
+                        <span className="text-orange-600 ml-2">⚠ {verificationResult.subject_match_info.corrected.length} corrected</span>
+                      )}
+                      {verificationResult.subject_match_info.missing_in_excel?.length > 0 && (
+                        <span className="text-red-600 ml-2">✗ {verificationResult.subject_match_info.missing_in_excel.length} not in database</span>
+                      )}
+                    </span>
+                  )}
+                </h3>
                 <div className="overflow-x-auto">
                   <table className="min-w-full bg-white border border-gray-200 rounded-lg">
                     <thead className="bg-gray-100">
@@ -405,17 +420,82 @@ export const LandingPage = () => {
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Grade</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Marks</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Credits</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {verificationResult.extracted_data.subject_grades.map((subject, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-900">{subject.subject_name || '-'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{subject.grade || '-'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{subject.marks || '-'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{subject.credits || '-'}</td>
-                        </tr>
-                      ))}
+                      {verificationResult.extracted_data.subject_grades.map((subject, idx) => {
+                        const subjectName = subject.subject_name || '';
+                        
+                        // Check if this subject was matched exactly
+                        const matchedSubject = verificationResult.subject_match_info?.matched?.find(
+                          m => m.extracted === subjectName
+                        );
+                        
+                        // Check if this subject was corrected
+                        const correctedSubject = verificationResult.subject_match_info?.corrected?.find(
+                          c => c.extracted === subjectName
+                        );
+                        
+                        // Check if this subject is missing in Excel
+                        const isMissing = verificationResult.subject_match_info?.missing_in_excel?.includes(subjectName);
+                        
+                        const rowClass = matchedSubject 
+                          ? 'bg-green-50 hover:bg-green-100' 
+                          : correctedSubject 
+                          ? 'bg-orange-50 hover:bg-orange-100' 
+                          : isMissing 
+                          ? 'bg-red-50 hover:bg-red-100' 
+                          : 'hover:bg-gray-50';
+                        
+                        const textColor = matchedSubject 
+                          ? 'text-green-900' 
+                          : correctedSubject 
+                          ? 'text-orange-900' 
+                          : isMissing 
+                          ? 'text-red-900' 
+                          : 'text-gray-900';
+                        
+                        return (
+                          <tr key={idx} className={rowClass}>
+                            <td className={`px-4 py-3 text-sm ${textColor}`}>
+                              {correctedSubject ? correctedSubject.excel : (matchedSubject ? matchedSubject.excel : subjectName) || '-'}
+                              {correctedSubject && (
+                                <div className="text-xs text-gray-600 mt-1">
+                                  Database: <span className="font-medium">{correctedSubject.extracted}</span>
+                                </div>
+                              )}
+                            </td>
+                            <td className={`px-4 py-3 text-sm ${textColor} font-medium`}>
+                              {(correctedSubject || matchedSubject) ? (correctedSubject?.excel_grade || matchedSubject?.excel_grade) : subject.grade || '-'}
+                              {(correctedSubject || matchedSubject) && (
+                                <span className="text-xs text-gray-500 ml-2">
+                                  (Database: {subject.grade})
+                                </span>
+                              )}
+                            </td>
+                            <td className={`px-4 py-3 text-sm ${textColor}`}>{subject.marks || '-'}</td>
+                            <td className={`px-4 py-3 text-sm ${textColor}`}>{subject.credits || '-'}</td>
+                            <td className="px-4 py-3 text-sm">
+                              {matchedSubject && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  ✓ Matched
+                                </span>
+                              )}
+                              {correctedSubject && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                  ⚠ Similar
+                                </span>
+                              )}
+                              {isMissing && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                  ✗ Not in DB
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
