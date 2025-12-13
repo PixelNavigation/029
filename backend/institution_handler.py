@@ -101,7 +101,7 @@ def upload_certificates_handler(upload_folder, allowed_file_func, save_metadata_
     extracted_data = []
     if uploaded_files:
         try:
-            from ocr_pipeline import process_certificate_file, normalize_extracted_data
+            from ocr_pipeline import process_certificate_file, normalize_extracted_data, create_certificate_hash
 
             for file_info in uploaded_files:
                 file_path = file_info["file_path"]
@@ -109,6 +109,9 @@ def upload_certificates_handler(upload_folder, allowed_file_func, save_metadata_
                 data = process_certificate_file(file_path)
                 data = normalize_extracted_data(data)
 
+                if "blockchain_hash" not in data:
+                    data["blockchain_hash"] = create_certificate_hash(data)
+        
                 data["preview_url"] = file_info["preview_url"]
                 data["original_filename"] = file_info["original_filename"]
                 extracted_data.append(data)
@@ -205,6 +208,22 @@ def confirm_and_save_data_handler():
     if not extracted_data:
         return jsonify({"error": "No data to save"}), 400
 
+    hashes_for_blockchain = []
+    for item in extracted_data:
+        # We rely on the hash being present here from the previous upload step
+        hash_val = item.get("blockchain_hash")
+        if hash_val and hash_val.startswith("0x") and len(hash_val) == 66: 
+            hashes_for_blockchain.append(hash_val)
+        else:
+            # OPTIONAL: Log a warning or re-calculate hash if needed
+            print(f"[WARNING] Skipping record due to invalid hash: {item.get('original_filename')}")
+
+    if not hashes_for_blockchain:
+        return jsonify({
+            "success": False, 
+            "error": "No valid blockchain hashes found to submit."
+        }), 400
+
     try:
         from ocr_pipeline import save_to_excel
 
@@ -272,9 +291,14 @@ def confirm_and_save_data_handler():
                         "excel_file": excel_path,
                         "total_records": len(extracted_data),
                         "verified_files": copied_files,
+                        
+                        # --- CRITICAL RETURN VALUE FOR BLOCKCHAIN ---
+                        "hashes": hashes_for_blockchain,
+                        # ------------------------------------------
+
                         "message": (
                             f"Successfully saved {len(extracted_data)} record(s) to Excel "
-                            f"and {len(copied_files)} original file(s)"
+                            f"and {len(copied_files)} original file(s). Ready for blockchain."
                         ),
                     }
                 ),

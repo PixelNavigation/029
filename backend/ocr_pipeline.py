@@ -6,6 +6,7 @@ from pathlib import Path
 from PIL import Image
 import google.generativeai as genai
 import pandas as pd
+import hashlib
 
 
 def setup_gemini():
@@ -155,6 +156,46 @@ def extract_certificate_data_with_gemini(file_path):
             "upload_date": datetime.now().strftime('%Y-%m-%d'),
             "extracted_at": datetime.utcnow().isoformat()
         }
+    
+def create_certificate_hash(certificate_data):
+    """
+    Generates a unique SHA-256 hash from the core certificate data fields.
+    
+    Args:
+        certificate_data (dict): Normalized certificate data.
+        
+    Returns:
+        str: The hex representation of the SHA-256 hash.
+    """
+    core_fields = [
+        'student_name', 
+        'student_id', 
+        'university_name', 
+        'degree_type', 
+        'cgpa', 
+        'year_of_passing', 
+        'certificate_number'
+    ]
+    
+    canonical_data = ""
+    for field in core_fields:
+        value = str(certificate_data.get(field, '')).strip().lower()
+        canonical_data += value
+        
+    subject_grades = certificate_data.get('subject_grades', [])
+    if isinstance(subject_grades, list) and subject_grades:
+        # Create a list of 'subject:grade' strings, sort them, and join
+        grade_strings = [
+            f"{sg.get('subject_name', '').strip().lower()}:{sg.get('grade', '').strip().lower()}"
+            for sg in subject_grades
+        ]
+        grade_strings.sort()
+        canonical_data += "".join(grade_strings)
+
+    encoded_data = canonical_data.encode('utf-8')
+    sha256_hash = hashlib.sha256(encoded_data).hexdigest()
+    
+    return "0x" + sha256_hash
 
 
 def save_to_excel(data_list, institution_name, output_dir='e:\\SIH 2025\\029'):

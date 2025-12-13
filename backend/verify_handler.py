@@ -6,7 +6,7 @@ from pathlib import Path
 from flask import jsonify
 from werkzeug.utils import secure_filename
 
-from ocr_pipeline import process_certificate_file, normalize_extracted_data
+from ocr_pipeline import process_certificate_file, normalize_extracted_data, create_certificate_hash
 
 
 def verify_certificate_upload(file, calculate_match_percentage_excel):
