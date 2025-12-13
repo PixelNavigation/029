@@ -381,6 +381,52 @@ export const LandingPage = () => {
               </div>
             </div>
 
+            {/* Blockchain Verification Details */}
+            {verificationResult.blockchain_hash && (
+              <div className="mb-6">
+                <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-blue-600" />
+                  Blockchain Verification
+                </h3>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-700 flex items-center gap-2">
+                      Status:
+                      {verificationResult.is_on_blockchain ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                          ✓ On-chain (hash found)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                          ✗ Not on-chain
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {verificationResult.is_on_blockchain
+                        ? 'Certificate hash matches a record on the blockchain. Authenticity is cryptographically proven.'
+                        : 'No matching hash found on the blockchain. Result is based on institutional database matching only.'}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs sm:text-sm font-mono max-w-full sm:max-w-xl">
+                    <Hash className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    <span className="truncate flex-1" title={verificationResult.blockchain_hash}>
+                      {verificationResult.blockchain_hash}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(verificationResult.blockchain_hash)}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-gray-100"
+                    >
+                      <Copy className="h-3 w-3" />
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Subject Grades */}
             {verificationResult.extracted_data.subject_grades && 
              verificationResult.extracted_data.subject_grades.length > 0 && (
