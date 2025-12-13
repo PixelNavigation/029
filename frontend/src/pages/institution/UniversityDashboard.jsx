@@ -1,29 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { ethers } from 'ethers';
-import { 
-  Building2, 
-  Upload, 
-  FileText, 
-  X, 
-  FileCheck,
-  Award,
-  CheckCircle,
-  Database,
-  Eye,
-  Shield,
-  Cpu,
-  Link,
-  FileImage,
-  Loader
-} from 'lucide-react';
+import { Building2, Upload, FileText, X, FileCheck,Award,CheckCircle,Database,Eye,Shield,Cpu,Link,FileImage,Loader} from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 import { institutionAPI } from '../../lib/api';
 import { CertificatePreviewModal } from '../../components/CertificatePreviewModal';
 
-// --- BEGIN BLOCKCHAIN CONSTANTS ---
-// NOTE: For hackathon/demo only. Do NOT expose private keys in production.
-// Configure these in your Vite .env file (VITE_*)
 const CERT_VERIFIER_ADDRESS = import.meta.env.VITE_CERT_VERIFIER_ADDRESS || '';
 const ISSUER_PRIVATE_KEY = import.meta.env.VITE_ISSUER_PRIVATE_KEY || '';
 const RPC_URL =

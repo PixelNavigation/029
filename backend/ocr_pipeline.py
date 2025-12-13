@@ -52,7 +52,7 @@ def extract_certificate_data_with_gemini(file_path):
         5. Specialization/Branch (e.g., "CSE", "ECE", "Computer Science", "Mechanical")
         6. Semester (just the number: "5", "3", "1", etc.)
         7. CGPA/Percentage
-        8. Year of Passing
+        8. Year of Passing (CRITICAL: Extract the year when the student completed/passed the course. Look for phrases like "Year of Passing", "Passed in", "Completion Year", "Year:", or any 4-digit year near completion/graduation context. Common formats: "2023", "2022-23", "Year: 2024". This is MANDATORY - look carefully!)
         9. Date of Issue
         10. Certificate Number
         11. Issuing Authority (the organization name like "Osmania University")
