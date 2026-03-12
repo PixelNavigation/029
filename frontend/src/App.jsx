@@ -2,7 +2,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/auth';
 import { LandingPage } from './pages/LandingPage';
-import SignInAdmin from './pages/auth/SignInAdmin';
 import SignInInstitution from './pages/auth/SignInInstitution';
 import SignInStudent from './pages/auth/SignInStudent';
 import SignUpStudent from './pages/auth/SignUpStudent';
@@ -10,7 +9,6 @@ import { UniversitySignUp } from './pages/auth/UniversitySignUp';
 import { StudentDashboard } from './pages/student/StudentDashboard';
 import { StudentApplicationPortal } from './pages/student/StudentApplicationPortal';
 import { UniversityDashboard } from './pages/institution/UniversityDashboard';
-import { CentralAuthorityDashboard } from './pages/admin/CentralAuthorityDashboard';
 import VerificationPage from './pages/VerificationPage';
 import DocumentAccessPage from './pages/DocumentAccessPage';
 import WalletPage from './pages/WalletPage';
@@ -48,7 +46,6 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
-            <Route path="/auth/signin-admin" element={<SignInAdmin />} />
             <Route path="/auth/signin-institution" element={<SignInInstitution />} />
             <Route path="/auth/signin-student" element={<SignInStudent />} />
             <Route path="/auth/signup-student" element={<SignUpStudent />} />
@@ -95,15 +92,6 @@ function App() {
                       <p className="text-gray-600 mt-2">Coming soon...</p>
                     </div>
                   </div>
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <CentralAuthorityDashboard />
                 </ProtectedRoute>
               }
             />

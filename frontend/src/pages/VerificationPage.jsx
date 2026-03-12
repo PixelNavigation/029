@@ -20,11 +20,11 @@ const VerificationPage = () => {
   useEffect(() => {
     // Get data from URL parameters
     const data = searchParams.get('data');
-    
+
     if (data) {
       try {
         const decodedData = JSON.parse(decodeURIComponent(data));
-        
+
         // Generate enhanced verification data with blockchain and detailed info
         const enhancedData = {
           ...decodedData,
@@ -97,7 +97,7 @@ const VerificationPage = () => {
             }
           ]
         };
-        
+
         setVerificationData(enhancedData);
         generateDetailedReport(enhancedData);
       } catch (err) {
@@ -131,16 +131,16 @@ const VerificationPage = () => {
       setVerificationData(sampleData);
       generateDetailedReport(sampleData);
     }
-    
+
     setLoading(false);
   }, [searchParams]);
 
   const generateDetailedReport = async (data) => {
     setGeneratingReport(true);
-    
+
     // Simulate report generation delay
     await new Promise(resolve => setTimeout(resolve, 1500));
-    
+
     const report = {
       generatedAt: new Date().toISOString(),
       reportId: 'RPT-' + Math.random().toString(36).substr(2, 9).toUpperCase(),
@@ -165,7 +165,7 @@ const VerificationPage = () => {
         'Document can be safely accepted for official purposes'
       ]
     };
-    
+
     setReportData(report);
     setGeneratingReport(false);
   };
@@ -181,11 +181,11 @@ const VerificationPage = () => {
       verificationData,
       studentInfo: verificationData.studentInfo
     };
-    
+
     const blob = new Blob([JSON.stringify(reportContent, null, 2)], {
       type: 'application/json'
     });
-    
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -253,7 +253,7 @@ const VerificationPage = () => {
               <p className="text-gray-600">Academic Credentials Verification System (ACVS)</p>
             </div>
           </div>
-          
+
           {/* Verification Status */}
           <div className="flex items-center space-x-2 p-3 bg-green-50 border border-green-200 rounded-lg">
             <CheckCircle className="h-6 w-6 text-green-600" />
@@ -268,7 +268,7 @@ const VerificationPage = () => {
             <User className="h-5 w-5 mr-2" />
             Student Information
           </h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
@@ -278,7 +278,7 @@ const VerificationPage = () => {
                   <p className="font-medium text-gray-900">{studentInfo?.name}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3">
                 <Mail className="h-4 w-4 text-gray-400" />
                 <div>
@@ -286,7 +286,7 @@ const VerificationPage = () => {
                   <p className="font-medium text-gray-900">{studentInfo?.email}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3">
                 <Building2 className="h-4 w-4 text-gray-400" />
                 <div>
@@ -295,7 +295,7 @@ const VerificationPage = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
                 <BookOpen className="h-4 w-4 text-gray-400" />
@@ -304,7 +304,7 @@ const VerificationPage = () => {
                   <p className="font-medium text-gray-900">{studentInfo?.course}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3">
                 <Calendar className="h-4 w-4 text-gray-400" />
                 <div>
@@ -312,7 +312,7 @@ const VerificationPage = () => {
                   <p className="font-medium text-gray-900">{studentInfo?.year}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3">
                 <span className="h-4 w-4 text-gray-400 flex items-center justify-center text-xs font-bold">#</span>
                 <div>
@@ -347,26 +347,16 @@ const VerificationPage = () => {
               )}
             </div>
           </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+
+          <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="text-center p-4 bg-gray-50 rounded-lg">
               <div className="text-2xl font-bold text-gray-900">{verification?.total || 2}</div>
               <div className="text-sm text-gray-600">Total Documents</div>
             </div>
-            
+
             <div className="text-center p-4 bg-green-50 rounded-lg">
               <div className="text-2xl font-bold text-green-600">{verification?.verified || 2}</div>
               <div className="text-sm text-green-600">Verified</div>
-            </div>
-            
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{reportData?.verificationScore || 95}%</div>
-              <div className="text-sm text-blue-600">Verification Score</div>
-            </div>
-            
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-600">{verificationData?.blockchainInfo?.confirmations || 67}</div>
-              <div className="text-sm text-purple-600">Blockchain Confirmations</div>
             </div>
           </div>
 
@@ -380,7 +370,7 @@ const VerificationPage = () => {
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Transaction Hash:</span>
-                  <button 
+                  <button
                     onClick={() => copyToClipboard(verificationData?.blockchainInfo?.transactionHash)}
                     className="font-mono text-xs bg-white px-2 py-1 rounded hover:bg-gray-100 transition-colors"
                   >
@@ -413,13 +403,13 @@ const VerificationPage = () => {
             <Eye className="h-5 w-5 mr-2 text-blue-600" />
             Document Previews
           </h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {verificationData?.documentPreviews?.map((doc) => (
               <div key={doc.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="relative mb-3">
-                  <img 
-                    src={doc.thumbnailUrl} 
+                  <img
+                    src={doc.thumbnailUrl}
                     alt={doc.name}
                     className="w-full h-40 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
                     onClick={() => handleDocumentPreview(doc)}
@@ -434,7 +424,7 @@ const VerificationPage = () => {
                     <ZoomIn className="h-8 w-8 text-white opacity-0 hover:opacity-100 transition-opacity" />
                   </button>
                 </div>
-                
+
                 <div className="space-y-2">
                   <h3 className="font-medium text-gray-900 truncate">{doc.name}</h3>
                   <div className="flex justify-between text-sm text-gray-600">
@@ -447,7 +437,7 @@ const VerificationPage = () => {
                       {doc.hash.substring(0, 16)}...
                     </span>
                   </div>
-                  
+
                   <div className="flex space-x-2 mt-3">
                     <button
                       onClick={() => handleDocumentPreview(doc)}
@@ -500,7 +490,7 @@ const VerificationPage = () => {
                     <div className="text-2xl font-bold text-green-600">{reportData.verificationScore}%</div>
                     <div className="text-sm text-green-600">Excellent</div>
                   </div>
-                  
+
                   <div className="bg-blue-50 rounded-lg p-4">
                     <div className="flex items-center space-x-2 mb-2">
                       <Shield className="h-5 w-5 text-blue-600" />
@@ -509,7 +499,7 @@ const VerificationPage = () => {
                     <div className="text-lg font-bold text-blue-600">{reportData.riskAssessment}</div>
                     <div className="text-sm text-blue-600">Safe to accept</div>
                   </div>
-                  
+
                   <div className="bg-purple-50 rounded-lg p-4">
                     <div className="flex items-center space-x-2 mb-2">
                       <Award className="h-5 w-5 text-purple-600" />
@@ -545,7 +535,7 @@ const VerificationPage = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Smart Contract:</span>
-                        <button 
+                        <button
                           onClick={() => copyToClipboard(reportData.technicalDetails.smartContractAddress)}
                           className="font-mono text-xs bg-white px-2 py-1 rounded hover:bg-gray-100 transition-colors"
                         >
@@ -606,7 +596,7 @@ const VerificationPage = () => {
             <CheckCircle className="h-5 w-5 mr-2 text-green-600" />
             Verified Documents ({verifiedDocuments.length})
           </h2>
-          
+
           {verifiedDocuments.length > 0 ? (
             <div className="space-y-3">
               {verifiedDocuments.map((doc, index) => (
@@ -623,7 +613,7 @@ const VerificationPage = () => {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="text-right">
                     <div className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
                       ✓ VERIFIED
@@ -646,7 +636,7 @@ const VerificationPage = () => {
         {/* Verification Details */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Verification Details</h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h3 className="font-medium text-gray-900 mb-2">Verification Metadata</h3>
@@ -665,7 +655,7 @@ const VerificationPage = () => {
                 </div>
               </div>
             </div>
-            
+
             <div>
               <h3 className="font-medium text-gray-900 mb-2">Security Features</h3>
               <div className="space-y-2 text-sm">
@@ -713,27 +703,27 @@ const VerificationPage = () => {
                   <p className="text-sm text-gray-600">{selectedDocument.size} • {selectedDocument.pages} page{selectedDocument.pages > 1 ? 's' : ''}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-2">
-                <button 
+                <button
                   className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
                   title="Rotate"
                 >
                   <RotateCw className="h-5 w-5" />
                 </button>
-                <button 
+                <button
                   className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
                   title="Download"
                 >
                   <Download className="h-5 w-5" />
                 </button>
-                <button 
+                <button
                   className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
                   title="Print"
                 >
                   <Printer className="h-5 w-5" />
                 </button>
-                <button 
+                <button
                   className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
                   title="Share"
                 >
@@ -748,7 +738,7 @@ const VerificationPage = () => {
                 </button>
               </div>
             </div>
-            
+
             <div className="p-4 bg-gray-50 border-b">
               <div className="flex items-center space-x-4 text-sm">
                 <div className="flex items-center space-x-2">
@@ -766,17 +756,17 @@ const VerificationPage = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex-1 overflow-auto bg-gray-100" style={{ maxHeight: 'calc(90vh - 200px)' }}>
               <div className="flex items-center justify-center p-8">
-                <img 
-                  src={selectedDocument.fullUrl} 
+                <img
+                  src={selectedDocument.fullUrl}
                   alt={selectedDocument.name}
                   className="max-w-full max-h-full object-contain rounded shadow-lg"
                 />
               </div>
             </div>
-            
+
             <div className="p-4 bg-gray-50 border-t">
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-600">

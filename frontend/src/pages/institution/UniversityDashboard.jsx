@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Building2, Upload, FileText, X, FileCheck,Award,CheckCircle,Database,Eye,Shield,Cpu,Link,FileImage,Loader} from 'lucide-react';
+import { Building2, Upload, FileText, X, FileCheck, Award, CheckCircle, Database, Eye, Shield, Cpu, Link, FileImage, Loader } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 import { institutionAPI } from '../../lib/api';
 import { CertificatePreviewModal } from '../../components/CertificatePreviewModal';
@@ -42,7 +42,7 @@ export const UniversityDashboard = () => {
   const onDrop = async (acceptedFiles) => {
     setUploadError('');
     setIsProcessing(true);
-    
+
     try {
       // Upload files to backend
       const response = await institutionAPI.uploadCertificates(
@@ -119,22 +119,22 @@ export const UniversityDashboard = () => {
   const processCertificates = async (files) => {
     setIsProcessing(true);
     setProcessingProgress(0);
-    
+
     // TODO: Implement actual OCR processing API
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
     setIsProcessing(false);
     setProcessingProgress(0);
     alert('OCR processing system not yet implemented.');
   };
-  
+
 
   // Database connection
   const connectToDatabase = async () => {
     setConnectionStatus('connecting');
-    
+
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     // TODO: Implement actual database connection
     setConnectionStatus('disconnected');
     alert('Database connection not yet implemented.');
@@ -158,7 +158,7 @@ export const UniversityDashboard = () => {
     }
 
     setIsProcessing(true);
-    
+
     try {
       // STEP 1: Confirm and save data to backend (e.g. Excel)
       const saveResponse = await institutionAPI.confirmData(
@@ -187,13 +187,13 @@ export const UniversityDashboard = () => {
           `Registered hashes: ${registeredCount}/${saveResponse.hashes_submitted?.length || registeredCount}`
         );
       }
-      
+
       // Reset after successful submission
       setProcessedCertificates([]);
       setUploadedFiles([]);
       setPreviewData(null);
       setShowPreview(false);
-      
+
     } catch (error) {
       console.error('Submission failed:', error);
       alert(`Failed to complete submission: ${error.message}`);
@@ -215,9 +215,14 @@ export const UniversityDashboard = () => {
               <div>
                 <h1 className="text-xl font-bold text-gray-900">University Portal</h1>
                 <p className="text-sm text-gray-600">Certificate Application System</p>
+                {previewData && previewData.length > 0 && previewData[0].issuing_authority && (
+                  <p className="text-xs text-blue-700 mt-1">
+                    Issuing Authority: <span className="font-semibold">{previewData[0].issuing_authority}</span>
+                  </p>
+                )}
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-700">
                 Welcome, <span className="font-medium">{user?.institutionName}</span>
@@ -255,7 +260,7 @@ export const UniversityDashboard = () => {
                 <Upload className="h-5 w-5 text-blue-600" />
                 <span className="text-sm font-medium text-gray-900">Bulk File Upload</span>
               </label>
-              
+
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="radio"
@@ -288,15 +293,15 @@ export const UniversityDashboard = () => {
                   {...getRootProps()}
                   className={`
                     border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-300 mb-6
-                    ${isDragActive 
-                      ? 'border-blue-500 bg-blue-50' 
+                    ${isDragActive
+                      ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-300 hover:border-gray-400'
                     }
                   `}
                 >
                   <input {...getInputProps()} />
                   <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  
+
                   {isDragActive ? (
                     <div>
                       <p className="text-lg font-medium text-blue-600 mb-2">Drop certificates here</p>
@@ -383,18 +388,17 @@ export const UniversityDashboard = () => {
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-medium text-gray-900">Connection Status:</span>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        connectionStatus === 'connected' 
-                          ? 'bg-green-100 text-green-800' 
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${connectionStatus === 'connected'
+                          ? 'bg-green-100 text-green-800'
                           : connectionStatus === 'connecting'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {connectionStatus === 'connected' ? '● Connected' : 
-                         connectionStatus === 'connecting' ? '● Connecting...' : '● Disconnected'}
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                        {connectionStatus === 'connected' ? '● Connected' :
+                          connectionStatus === 'connecting' ? '● Connecting...' : '● Disconnected'}
                       </span>
                     </div>
-                    
+
                     {connectionStatus === 'disconnected' && (
                       <div className="space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -475,14 +479,14 @@ export const UniversityDashboard = () => {
                   <Cpu className="h-5 w-5 text-blue-600" />
                   <h3 className="text-lg font-semibold text-gray-900">Processing Certificates</h3>
                 </div>
-                
+
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">OCR Processing Progress</span>
                     <span className="font-medium">{Math.round(processingProgress)}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
+                    <div
                       className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                       style={{ width: `${processingProgress}%` }}
                     ></div>
@@ -515,28 +519,26 @@ export const UniversityDashboard = () => {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Mode:</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    uploadMode === 'bulk' 
-                      ? 'bg-blue-100 text-blue-800' 
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${uploadMode === 'bulk'
+                      ? 'bg-blue-100 text-blue-800'
                       : 'bg-green-100 text-green-800'
-                  }`}>
+                    }`}>
                     {uploadMode === 'bulk' ? 'Bulk Upload' : 'Database Connected'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Status:</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    isProcessing 
-                      ? 'bg-yellow-100 text-yellow-800' 
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${isProcessing
+                      ? 'bg-yellow-100 text-yellow-800'
                       : processedCertificates.length > 0
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {isProcessing 
-                      ? 'Processing...' 
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                    {isProcessing
+                      ? 'Processing...'
                       : processedCertificates.length > 0
-                      ? 'Ready for Blockchain'
-                      : 'Waiting for Input'
+                        ? 'Ready for Blockchain'
+                        : 'Waiting for Input'
                     }
                   </span>
                 </div>
@@ -558,7 +560,7 @@ export const UniversityDashboard = () => {
                   <span>Last Upload:</span>
                   <span className="font-medium text-gray-900">{lastUploadDate ? new Date(lastUploadDate).toLocaleString() : '—'}</span>
                 </div>
-                
+
                 {/* Recent Batches */}
                 {recentBatches.length > 0 && (
                   <div className="mt-4 pt-4 border-t">
@@ -654,15 +656,14 @@ export const UniversityDashboard = () => {
                     <Eye className="h-4 w-4" />
                     <span>Hide Preview</span>
                   </button>
-                  
-                  <button 
+
+                  <button
                     onClick={handleFinalSubmit}
                     disabled={isProcessing}
-                    className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg transition-colors ${
-                      !isProcessing
+                    className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg transition-colors ${!isProcessing
                         ? 'bg-blue-600 text-white hover:bg-blue-700'
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
+                      }`}
                   >
                     {isProcessing ? (
                       <>
@@ -676,7 +677,7 @@ export const UniversityDashboard = () => {
                       </>
                     )}
                   </button>
-                  
+
                   <p className="text-xs text-gray-500 text-center">
                     Data will be encrypted and stored securely on blockchain
                   </p>
@@ -697,13 +698,12 @@ export const UniversityDashboard = () => {
                       <span className="text-gray-600 truncate">
                         {cert.fileName}
                       </span>
-                      <span className={`font-medium ${
-                        cert.extractedData.confidence >= 90 
-                          ? 'text-green-600' 
-                          : cert.extractedData.confidence >= 80 
-                          ? 'text-yellow-600' 
-                          : 'text-red-600'
-                      }`}>
+                      <span className={`font-medium ${cert.extractedData.confidence >= 90
+                          ? 'text-green-600'
+                          : cert.extractedData.confidence >= 80
+                            ? 'text-yellow-600'
+                            : 'text-red-600'
+                        }`}>
                         {cert.extractedData.confidence}%
                       </span>
                     </div>
@@ -719,7 +719,7 @@ export const UniversityDashboard = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Certificate Preview Modal */}
       <CertificatePreviewModal
         show={showPreview}
@@ -728,6 +728,7 @@ export const UniversityDashboard = () => {
         onClose={() => setShowPreview(false)}
         onConfirm={handleFinalSubmit}
         onDataChange={handlePreviewDataChange}
+        showIssuingAuthority={true}
       />
     </div>
   );

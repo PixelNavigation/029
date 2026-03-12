@@ -283,6 +283,7 @@ def confirm_and_save_data_handler():
                     "semester":         str(item.get("semester", "")),
                     "subject_grades":   item.get("subject_grades", []),
                     "blockchain_hash":  blockchain_hash,
+                    "issuing_authority": item.get("issuing_authority", ""),
                 }
                 try:
                     supabase.table("official_records").insert(record).execute()
