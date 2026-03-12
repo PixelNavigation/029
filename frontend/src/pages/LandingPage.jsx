@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Navbar } from '../components/Navbar';
 import { FileUpload } from '../components/FileUpload';
 import { QRVerification } from '../components/QRVerification';
-import { 
+import {
   Shield, CheckCircle, Users, Building2, Award, GraduationCap, Calendar, User, Mail, BookOpen,
   FileText, Download, Eye, Hash, Clock, Copy, ZoomIn, X, Printer, Share2, QrCode, Upload, Camera, AlertCircle, XCircle
 } from 'lucide-react';
@@ -21,23 +21,23 @@ export const LandingPage = () => {
 
   const handleFileSelect = async (files) => {
     if (!files || files.length === 0) return;
-    
+
     setUploadedFiles(files);
     setIsProcessing(true);
     setVerificationResult(null);
-    
+
     try {
       const file = files[0]; // Take first file
       const formData = new FormData();
       formData.append('file', file);
-      
+
       const response = await fetch(`${API_URL}/api/verify-upload`, {
         method: 'POST',
         body: formData
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setVerificationResult(data.result);
       } else {
@@ -72,38 +72,38 @@ export const LandingPage = () => {
     try {
       setCameraError('');
       setIsCameraOpen(true);
-      
+
       // Request camera permission
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
           facingMode: 'environment' // Use back camera if available
-        } 
+        }
       });
-      
+
       // Create video element to display camera feed
       const video = document.createElement('video');
       video.srcObject = stream;
       video.setAttribute('playsinline', true); // Required for iOS
       video.play();
-      
+
       // QR code scanning
       setTimeout(async () => {
         // Stop camera
         stream.getTracks().forEach(track => track.stop());
         setIsCameraOpen(false);
-        
+
         setIsProcessing(true);
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         // TODO: Implement actual QR code verification
         setIsProcessing(false);
         alert('QR code verification system not yet implemented.');
       }, 3000);
-      
+
     } catch (error) {
       setIsCameraOpen(false);
       console.error('Camera access error:', error);
-      
+
       if (error.name === 'NotAllowedError') {
         setCameraError('Camera access denied. Please allow camera permission and try again.');
       } else if (error.name === 'NotFoundError') {
@@ -154,7 +154,7 @@ export const LandingPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <Navbar />
-      
+
       {/* Hero Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-16">
@@ -168,7 +168,7 @@ export const LandingPage = () => {
             <span className="text-blue-600"> Verification System</span>
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            Secure, fast, and reliable verification of academic certificates using blockchain technology. 
+            Secure, fast, and reliable verification of academic certificates using blockchain technology.
             Trusted by institutions worldwide for authentic document verification.
           </p>
         </div>
@@ -181,12 +181,12 @@ export const LandingPage = () => {
                 Verify Your Certificate
               </h2>
               <p className="text-gray-600 max-w-2xl mx-auto mb-6">
-                Upload your academic documents for instant verification. Our AI-powered system will process 
+                Upload your academic documents for instant verification. Our AI-powered system will process
                 your certificates and generate a comprehensive verification report with blockchain authentication.
               </p>
-              
+
             </div>
-            
+
             {isProcessing ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
@@ -196,7 +196,7 @@ export const LandingPage = () => {
             ) : (
               <>
                 <FileUpload onFileSelect={handleFileSelect} />
-                
+
                 {/* QR Verification Section */}
                 <div className="mt-12 pt-8 border-t border-gray-200">
                   <div className="text-center mb-6">
@@ -223,11 +223,10 @@ export const LandingPage = () => {
                       <button
                         onClick={isCameraOpen ? stopCamera : startCamera}
                         disabled={isProcessing}
-                        className={`px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
-                          isCameraOpen 
-                            ? 'bg-red-600 text-white hover:bg-red-700' 
+                        className={`px-4 py-2 rounded-lg transition-colors text-sm font-medium ${isCameraOpen
+                            ? 'bg-red-600 text-white hover:bg-red-700'
                             : 'bg-blue-600 text-white hover:bg-blue-700'
-                        } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         {isProcessing ? 'Processing...' : isCameraOpen ? 'Stop Camera' : 'Start Scanning'}
                       </button>
@@ -247,15 +246,15 @@ export const LandingPage = () => {
                         onChange={async (e) => {
                           const file = e.target.files[0];
                           if (!file) return;
-                          
+
                           if (!file.type.startsWith('image/')) {
                             alert('Please upload a valid image file.');
                             return;
                           }
-                          
+
                           setIsProcessing(true);
                           await new Promise(resolve => setTimeout(resolve, 1000));
-                          
+
                           // TODO: Implement actual QR code verification from image
                           setIsProcessing(false);
                           alert('QR code verification from image not yet implemented.');
@@ -294,15 +293,14 @@ export const LandingPage = () => {
             </div>
 
             {/* Verification Status Banner */}
-            <div className={`p-6 rounded-lg mb-6 ${
-              verificationResult.verification_status === 'verified' 
+            <div className={`p-6 rounded-lg mb-6 ${verificationResult.verification_status === 'verified'
                 ? 'bg-green-50 border border-green-200'
                 : verificationResult.verification_status === 'semi-verified'
-                ? 'bg-yellow-50 border border-yellow-200'
-                : verificationResult.verification_status === 'not_found'
-                ? 'bg-orange-50 border border-orange-200'
-                : 'bg-red-50 border border-red-200'
-            }`}>
+                  ? 'bg-yellow-50 border border-yellow-200'
+                  : verificationResult.verification_status === 'not_found'
+                    ? 'bg-orange-50 border border-orange-200'
+                    : 'bg-red-50 border border-red-200'
+              }`}>
               <div className="flex items-center space-x-3">
                 {verificationResult.verification_status === 'verified' ? (
                   <>
@@ -430,114 +428,88 @@ export const LandingPage = () => {
             )}
 
             {/* Subject Grades */}
-            {verificationResult.extracted_data.subject_grades && 
-             verificationResult.extracted_data.subject_grades.length > 0 && (
-              <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                  Subject-wise Grades
-                  {verificationResult.subject_match_info && (
-                    <span className="ml-3 text-sm text-gray-600">
-                      {verificationResult.subject_match_info.matched?.length > 0 && (
-                        <span className="text-green-600">✓ {verificationResult.subject_match_info.matched.length} matched</span>
-                      )}
-                      {verificationResult.subject_match_info.corrected?.length > 0 && (
-                        <span className="text-orange-600 ml-2">⚠ {verificationResult.subject_match_info.corrected.length} corrected</span>
-                      )}
-                      {verificationResult.subject_match_info.missing_in_excel?.length > 0 && (
-                        <span className="text-red-600 ml-2">✗ {verificationResult.subject_match_info.missing_in_excel.length} not in database</span>
-                      )}
-                    </span>
-                  )}
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full bg-white border border-gray-200 rounded-lg">
-                    <thead className="bg-gray-100">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Subject</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Grade</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Marks</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Credits</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {verificationResult.extracted_data.subject_grades.map((subject, idx) => {
-                        const subjectName = subject.subject_name || '';
-                        
-                        // Check if this subject was matched exactly
-                        const matchedSubject = verificationResult.subject_match_info?.matched?.find(
-                          m => m.extracted === subjectName
-                        );
-                        
-                        // Check if this subject was corrected
-                        const correctedSubject = verificationResult.subject_match_info?.corrected?.find(
-                          c => c.extracted === subjectName
-                        );
-                        
-                        // Check if this subject is missing in Excel
-                        const isMissing = verificationResult.subject_match_info?.missing_in_excel?.includes(subjectName);
-                        
-                        const rowClass = matchedSubject 
-                          ? 'bg-green-50 hover:bg-green-100' 
-                          : correctedSubject 
-                          ? 'bg-orange-50 hover:bg-orange-100' 
-                          : isMissing 
-                          ? 'bg-red-50 hover:bg-red-100' 
-                          : 'hover:bg-gray-50';
-                        
-                        const textColor = matchedSubject 
-                          ? 'text-green-900' 
-                          : correctedSubject 
-                          ? 'text-orange-900' 
-                          : isMissing 
-                          ? 'text-red-900' 
-                          : 'text-gray-900';
-                        
-                        return (
-                          <tr key={idx} className={rowClass}>
-                            <td className={`px-4 py-3 text-sm ${textColor}`}>
-                              {correctedSubject ? correctedSubject.excel : (matchedSubject ? matchedSubject.excel : subjectName) || '-'}
-                              {correctedSubject && (
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Database: <span className="font-medium">{correctedSubject.extracted}</span>
-                                </div>
-                              )}
-                            </td>
-                            <td className={`px-4 py-3 text-sm ${textColor} font-medium`}>
-                              {(correctedSubject || matchedSubject) ? (correctedSubject?.excel_grade || matchedSubject?.excel_grade) : subject.grade || '-'}
-                              {(correctedSubject || matchedSubject) && (
-                                <span className="text-xs text-gray-500 ml-2">
-                                  (Database: {subject.grade})
-                                </span>
-                              )}
-                            </td>
-                            <td className={`px-4 py-3 text-sm ${textColor}`}>{subject.marks || '-'}</td>
-                            <td className={`px-4 py-3 text-sm ${textColor}`}>{subject.credits || '-'}</td>
-                            <td className="px-4 py-3 text-sm">
-                              {matchedSubject && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                  ✓ Matched
-                                </span>
-                              )}
-                              {correctedSubject && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                  ⚠ Similar
-                                </span>
-                              )}
-                              {isMissing && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                  ✗ Not in DB
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+            {verificationResult.extracted_data.subject_grades &&
+              verificationResult.extracted_data.subject_grades.length > 0 && (
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                    Subject-wise Grades
+                    {verificationResult.subject_match_info && (
+                      <span className="ml-3 text-sm text-gray-600">
+                        {verificationResult.subject_match_info.matched?.length > 0 && (
+                          <span className="text-green-600">✓ {verificationResult.subject_match_info.matched.length} matched</span>
+                        )}
+                        {verificationResult.subject_match_info.corrected?.length > 0 && (
+                          <span className="text-orange-600 ml-2">⚠ {verificationResult.subject_match_info.corrected.length} corrected</span>
+                        )}
+                        {verificationResult.subject_match_info.missing_in_excel?.length > 0 && (
+                          <span className="text-red-600 ml-2">✗ {verificationResult.subject_match_info.missing_in_excel.length} not in database</span>
+                        )}
+                      </span>
+                    )}
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Subject</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Grade</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Credits</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {verificationResult.extracted_data.subject_grades.map((subject, idx) => {
+                          const subjectName = subject.subject_name || '';
+                          // Check if this subject was matched exactly
+                          const matchedSubject = verificationResult.subject_match_info?.matched?.find(
+                            m => m.extracted === subjectName
+                          );
+                          // Check if this subject was corrected
+                          const correctedSubject = verificationResult.subject_match_info?.corrected?.find(
+                            c => c.extracted === subjectName
+                          );
+                          // Check if this subject is missing in Excel
+                          const isMissing = verificationResult.subject_match_info?.missing_in_excel?.includes(subjectName);
+                          const rowClass = matchedSubject
+                            ? 'bg-green-50 hover:bg-green-100'
+                            : correctedSubject
+                              ? 'bg-orange-50 hover:bg-orange-100'
+                              : isMissing
+                                ? 'bg-red-50 hover:bg-red-100'
+                                : 'hover:bg-gray-50';
+                          const textColor = matchedSubject
+                            ? 'text-green-900'
+                            : correctedSubject
+                              ? 'text-orange-900'
+                              : isMissing
+                                ? 'text-red-900'
+                                : 'text-gray-900';
+                          return (
+                            <tr key={idx} className={rowClass}>
+                              <td className={`px-4 py-3 text-sm ${textColor}`}>
+                                {correctedSubject ? correctedSubject.excel : (matchedSubject ? matchedSubject.excel : subjectName) || '-'}
+                                {correctedSubject && (
+                                  <div className="text-xs text-gray-600 mt-1">
+                                    Database: <span className="font-medium">{correctedSubject.extracted}</span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className={`px-4 py-3 text-sm ${textColor} font-medium`}>
+                                {(correctedSubject || matchedSubject) ? (correctedSubject?.excel_grade || matchedSubject?.excel_grade) : subject.grade || '-'}
+                                {(correctedSubject || matchedSubject) && (
+                                  <span className="text-xs text-gray-500 ml-2">
+                                    (Database: {subject.grade})
+                                  </span>
+                                )}
+                              </td>
+                              <td className={`px-4 py-3 text-sm ${textColor}`}>{subject.credits || '-'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
         )}
 
@@ -555,7 +527,7 @@ export const LandingPage = () => {
                   <p className="text-gray-600">Academic Credentials Verification System (ACVS)</p>
                 </div>
               </div>
-              
+
               {/* Verification Status */}
               <div className="flex items-center space-x-2 p-4 bg-green-50 border border-green-200 rounded-lg">
                 <CheckCircle className="h-6 w-6 text-green-600" />
@@ -570,7 +542,7 @@ export const LandingPage = () => {
                 <User className="h-6 w-6 mr-2" />
                 Student Information
               </h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3">
@@ -580,7 +552,7 @@ export const LandingPage = () => {
                       <p className="font-medium text-gray-900 text-lg">{verificationData.studentInfo.name}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <Mail className="h-5 w-5 text-gray-400" />
                     <div>
@@ -588,7 +560,7 @@ export const LandingPage = () => {
                       <p className="font-medium text-gray-900">{verificationData.studentInfo.email}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <Building2 className="h-5 w-5 text-gray-400" />
                     <div>
@@ -597,7 +569,7 @@ export const LandingPage = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3">
                     <BookOpen className="h-5 w-5 text-gray-400" />
@@ -606,7 +578,7 @@ export const LandingPage = () => {
                       <p className="font-medium text-gray-900">{verificationData.studentInfo.course}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <Calendar className="h-5 w-5 text-gray-400" />
                     <div>
@@ -614,7 +586,7 @@ export const LandingPage = () => {
                       <p className="font-medium text-gray-900">{verificationData.studentInfo.year}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <span className="h-5 w-5 text-gray-400 flex items-center justify-center text-sm font-bold">#</span>
                     <div>
@@ -629,23 +601,23 @@ export const LandingPage = () => {
             {/* Verification Summary */}
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <h2 className="text-2xl font-semibold text-gray-900 mb-6">Verification Summary</h2>
-              
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <div className="text-3xl font-bold text-gray-900">{verificationData.verification.total}</div>
                   <div className="text-sm text-gray-600">Total Documents</div>
                 </div>
-                
+
                 <div className="text-center p-4 bg-green-50 rounded-lg">
                   <div className="text-3xl font-bold text-green-600">{verificationData.verification.verified}</div>
                   <div className="text-sm text-green-600">Verified</div>
                 </div>
-                
+
                 <div className="text-center p-4 bg-blue-50 rounded-lg">
                   <div className="text-3xl font-bold text-blue-600">95%</div>
                   <div className="text-sm text-blue-600">Verification Score</div>
                 </div>
-                
+
                 <div className="text-center p-4 bg-purple-50 rounded-lg">
                   <div className="text-3xl font-bold text-purple-600">{verificationData.blockchainInfo.confirmations}</div>
                   <div className="text-sm text-purple-600">Blockchain Confirmations</div>
@@ -662,7 +634,7 @@ export const LandingPage = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Transaction Hash:</span>
-                      <button 
+                      <button
                         onClick={() => copyToClipboard(verificationData.blockchainInfo.transactionHash)}
                         className="font-mono text-xs bg-white px-2 py-1 rounded hover:bg-gray-100 transition-colors"
                       >
@@ -695,21 +667,21 @@ export const LandingPage = () => {
                 <Eye className="h-6 w-6 mr-2 text-blue-600" />
                 Uploaded Documents
               </h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {verificationData.uploadedFiles.map((file) => (
                   <div key={file.id} className="border-2 border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow">
                     <div className="relative mb-4">
                       {file.type.startsWith('image/') ? (
-                        <img 
-                          src={file.url} 
+                        <img
+                          src={file.url}
                           alt={file.name}
                           className="w-full h-48 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => handleFilePreview(file)}
                         />
                       ) : (
                         <div className="w-full h-48 bg-gray-100 rounded flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors"
-                             onClick={() => handleFilePreview(file)}>
+                          onClick={() => handleFilePreview(file)}>
                           <FileText className="h-16 w-16 text-gray-400" />
                         </div>
                       )}
@@ -723,14 +695,14 @@ export const LandingPage = () => {
                         <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                       </button>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <h3 className="font-medium text-gray-900 truncate">{file.name}</h3>
                       <div className="flex justify-between text-sm text-gray-600">
                         <span>{formatFileSize(file.size)}</span>
                         <span className="text-green-600 font-medium">✓ Verified</span>
                       </div>
-                      
+
                       <div className="flex space-x-2 mt-3">
                         <button
                           onClick={() => handleFilePreview(file)}
@@ -739,7 +711,7 @@ export const LandingPage = () => {
                           <Eye className="h-4 w-4" />
                           <span>View</span>
                         </button>
-                        <button 
+                        <button
                           onClick={() => {
                             const link = document.createElement('a');
                             link.href = file.url;
@@ -760,7 +732,7 @@ export const LandingPage = () => {
             {/* Action Buttons */}
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button 
+                <button
                   onClick={() => {
                     setVerificationData(null);
                     setUploadedFiles([]);
@@ -835,11 +807,11 @@ export const LandingPage = () => {
                 </div>
               </div>
               <p className="text-gray-400 mb-4">
-                Leading the digital transformation in academic credential verification 
+                Leading the digital transformation in academic credential verification
                 with secure, blockchain-based technology solutions.
               </p>
             </div>
-            
+
             <div>
               <h4 className="font-semibold mb-4">Quick Links</h4>
               <ul className="space-y-2 text-gray-400">
@@ -849,7 +821,7 @@ export const LandingPage = () => {
                 <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
               </ul>
             </div>
-            
+
             <div>
               <h4 className="font-semibold mb-4">Legal</h4>
               <ul className="space-y-2 text-gray-400">
@@ -859,7 +831,7 @@ export const LandingPage = () => {
               </ul>
             </div>
           </div>
-          
+
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
             <p>&copy; 2025 Academic Certificate Verification System. All rights reserved.</p>
           </div>
@@ -878,9 +850,9 @@ export const LandingPage = () => {
                   <p className="text-sm text-gray-600">{formatFileSize(selectedFile.size)}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-2">
-                <button 
+                <button
                   onClick={() => {
                     const link = document.createElement('a');
                     link.href = selectedFile.url;
@@ -892,7 +864,7 @@ export const LandingPage = () => {
                 >
                   <Download className="h-5 w-5" />
                 </button>
-                <button 
+                <button
                   className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
                   title="Print"
                 >
@@ -907,7 +879,7 @@ export const LandingPage = () => {
                 </button>
               </div>
             </div>
-            
+
             <div className="p-4 bg-gray-50 border-b">
               <div className="flex items-center space-x-4 text-sm">
                 <div className="flex items-center space-x-2">
@@ -920,12 +892,12 @@ export const LandingPage = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex-1 overflow-auto bg-gray-100" style={{ maxHeight: 'calc(90vh - 200px)' }}>
               <div className="flex items-center justify-center p-8">
                 {selectedFile.type.startsWith('image/') ? (
-                  <img 
-                    src={selectedFile.url} 
+                  <img
+                    src={selectedFile.url}
                     alt={selectedFile.name}
                     className="max-w-full max-h-full object-contain rounded shadow-lg"
                   />

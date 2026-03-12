@@ -42,48 +42,41 @@ export const Navbar = () => {
           {/* Right side - Navigation */}
           <div className="hidden md:flex items-center space-x-1">
             {/* Always show login buttons */}
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => handleLogin('admin')}
-              className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm"
-            >
-              <Shield className="h-4 w-4" />
-              <span>Central Authority</span>
-            </button>
-            
-            <button
-              onClick={() => handleLogin('institution')}
-              className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
-            >
-              <Building2 className="h-4 w-4" />
-              <span>University Login</span>
-            </button>
-            
-            <button
-              onClick={() => handleLogin('student')}
-              className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm"
-            >
-              <GraduationCap className="h-4 w-4" />
-              <span>Student Login</span>
-            </button>
+            <div className="flex items-center space-x-3">
 
-            {/* Show user info and sign out if logged in */}
-            {user && (
-              <div className="flex items-center space-x-3 ml-4 pl-4 border-l border-gray-300">
-                <div className="text-sm">
-                  <span className="text-gray-700">Welcome, </span>
-                  <span className="font-medium text-gray-900">{user.name}</span>
-                  <span className="text-xs text-gray-500 ml-2">({user.role})</span>
+              <button
+                onClick={() => handleLogin('institution')}
+                className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
+              >
+                <Building2 className="h-4 w-4" />
+                <span>University Login</span>
+              </button>
+
+              <button
+                onClick={() => handleLogin('student')}
+                className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm"
+              >
+                <GraduationCap className="h-4 w-4" />
+                <span>Student Login</span>
+              </button>
+
+              {/* Show user info and sign out if logged in */}
+              {user && (
+                <div className="flex items-center space-x-3 ml-4 pl-4 border-l border-gray-300">
+                  <div className="text-sm">
+                    <span className="text-gray-700">Welcome, </span>
+                    <span className="font-medium text-gray-900">{user.name}</span>
+                    <span className="text-xs text-gray-500 ml-2">({user.role})</span>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="px-3 py-1 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                  >
+                    Sign Out
+                  </button>
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="px-3 py-1 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                >
-                  Sign Out
-                </button>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
           </div>
 
           {/* Mobile menu button */}
@@ -104,14 +97,7 @@ export const Navbar = () => {
           <div className="px-4 py-4 space-y-4">
             {/* Always show login buttons */}
             <div className="space-y-3">
-              <button
-                onClick={() => handleLogin('admin')}
-                className="w-full flex items-center space-x-3 px-4 py-3 text-left text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
-              >
-                <Shield className="h-5 w-5" />
-                <span className="font-medium">Central Authority</span>
-              </button>
-              
+
               <button
                 onClick={() => handleLogin('institution')}
                 className="w-full flex items-center space-x-3 px-4 py-3 text-left text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -119,7 +105,7 @@ export const Navbar = () => {
                 <Building2 className="h-5 w-5" />
                 <span className="font-medium">University Login</span>
               </button>
-              
+
               <button
                 onClick={() => handleLogin('student')}
                 className="w-full flex items-center space-x-3 px-4 py-3 text-left text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
