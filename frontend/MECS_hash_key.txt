@@ -1,0 +1,7 @@
+Institution Registration Details
+Institution Name: MECS
+Institution Code: 1608
+Institution Type: Engineering College
+Contact Person: Gautam Babel Jain
+Contact Email: gautambabel16@gmail.com
+SHA256 Hash Key: 8447117892074333cb06adb67800ab87cbf76bfcd9e41f995b70fe61e1e48b03

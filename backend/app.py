@@ -12,7 +12,6 @@ from werkzeug.utils import secure_filename
 from pathlib import Path
 from verify_handler import (
     verify_certificate_upload as verify_certificate_upload_handler,
-    calculate_match_percentage_excel,
 )
 from ocr_pipeline import process_certificate_file, normalize_extracted_data, create_certificate_hash
 
@@ -682,7 +681,7 @@ def institution_signin():
     data = request.get_json() or {}
     
     # Validate required fields
-    required_fields = ['email', 'password', 'hashKey', 'institutionType']
+    required_fields = ['email', 'password', 'hashKey']
     missing_fields = [field for field in required_fields if not data.get(field)]
     
     if missing_fields:
@@ -701,12 +700,7 @@ def institution_signin():
         if institution.get('password') != data['password']:
             return jsonify({"error": "Invalid email or password"}), 401
         
-        # Verify institution type
-        stored_institution_type = institution.get('institution_type', '')
-        provided_institution_type = data.get('institutionType', '')
-        
-        if stored_institution_type != provided_institution_type:
-            return jsonify({"error": "Institution type does not match. Please select the correct institution type."}), 401
+        # Institution type validation removed
         
         # Verify hash key
         if institution.get('institution_hash') != data['hashKey']:
@@ -733,6 +727,56 @@ def institution_signin():
         return jsonify({"error": f"Sign in failed: {str(e)}"}), 500
 
 
+@app.route("/api/public/shared-profile/<profile_token>", methods=["GET"])
+def get_shared_profile(profile_token):
+    """Public endpoint for employers/verifiers to view a student's verified credentials.
+
+    Looks up the `public_profiles` table by `profile_token` (UUID), then returns
+    the profile data and all certificates with verification_status = 'verified'.
+    """
+    if not supabase:
+        return jsonify({"error": "Database not configured"}), 503
+
+    try:
+        # 1. Resolve profile_token → student_id
+        profile_result = (
+            supabase
+            .table("public_profiles")
+            .select("*")
+            .eq("profile_token", profile_token)
+            .maybe_single()
+            .execute()
+        )
+
+        if not profile_result or not profile_result.data:
+            return jsonify({"error": "Profile not found or token is invalid"}), 404
+
+        profile = profile_result.data
+        student_id = profile.get("student_id")
+
+        # 2. Fetch verified certificates for this student
+        certs_result = (
+            supabase
+            .table("certificates")
+            .select("*")
+            .eq("student_id", student_id)
+            .eq("verification_status", "verified")
+            .execute()
+        )
+
+        verified_certificates = certs_result.data or []
+
+        return jsonify({
+            "success": True,
+            "profile": profile,
+            "verified_certificates": verified_certificates,
+        }), 200
+
+    except Exception as e:
+        print(f"Shared profile fetch error: {str(e)}")
+        return jsonify({"error": f"Failed to fetch shared profile: {str(e)}"}), 500
+
+
 @app.route("/api/verify-upload", methods=["POST"])
 def verify_certificate_upload():
     """Wrapper route that delegates verification logic to `verify_handler`.
@@ -750,8 +794,8 @@ def verify_certificate_upload():
     if not allowed_file(file.filename):
         return jsonify({"error": "File type not allowed"}), 400
 
-    # Delegate to the shared handler, passing the helper used for Excel scoring
-    return verify_certificate_upload_handler(file, calculate_match_percentage_excel)
+    # Delegate to the handler (Supabase-based, no Excel helper needed)
+    return verify_certificate_upload_handler(file)
 
 
 if __name__ == "__main__":

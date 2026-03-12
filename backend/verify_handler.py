@@ -25,12 +25,12 @@ except ImportError as e:
 # --- END CRITICAL BLOCKCHAIN IMPORT ---
 
 
-def verify_certificate_upload(file, calculate_match_percentage_excel):
+def verify_certificate_upload(file, calculate_match_percentage_excel=None):
     """
-    Core logic for certificate verification, performing sequential checks:
-    1. Blockchain Authenticity Check (Hash Match)
-    2. Local Database Match (Student ID/Data Match)
-    3. Final Status Reporting
+    Core logic for certificate verification:
+    1. Blockchain Authenticity Check (H_OCR hash lookup)
+    2. Supabase O(1) lookup in official_records
+    3. Two-tier status determination (verified / forgery / tampered_record / not_found)
     """
     try:
         # --- PHASE 0: Setup and OCR Extraction ---
@@ -95,171 +95,138 @@ def verify_certificate_upload(file, calculate_match_percentage_excel):
             # We skip the Excel search here as authenticity is proven, but we will proceed to Phase 2 
             # to retrieve the local data for display purposes if possible.
         
-        # --- PHASE 2: LOCAL DATABASE MATCH (Required for data display & discrepancy analysis) ---
-
+        # --- PHASE 2: LOCAL DATABASE MATCH (Supabase O(1) Lookup) ---
         best_match = None
         best_match_score = 0
-        subject_match_info = {} 
-        matched_file_name = None
+        subject_match_info = {}
 
         student_id = extracted_data.get("student_id", "").strip()
-        student_name = extracted_data.get("student_name", "").strip()
-        
-        # NOTE: openpyxl must be imported before use
-        import openpyxl 
+        semester   = extracted_data.get("semester",   "").strip()
 
+        print(f"[VERIFICATION] Searching Supabase for Student ID: {student_id}  Semester: {semester or '(any)'}")
         try:
-            if student_id or student_name:
-                project_root = Path(__file__).parent.parent
-                excel_files = list(project_root.glob("*.xlsx"))
-                
-                print(f"[VERIFICATION] Found {len(excel_files)} Excel file(s) to search")
+            # Import supabase client from app module
+            try:
+                import app as _app
+                _supabase = _app.supabase
+            except Exception:
+                _supabase = None
 
-                for excel_file in excel_files:
-                    try:
-                        print(f"[VERIFICATION] Searching in file: {excel_file.name}")
+            if _supabase and student_id:
+                query = (
+                    _supabase.table("official_records")
+                    .select("*")
+                    .eq("student_id", student_id)
+                )
+                # Chain semester filter only when the OCR extracted a value
+                if semester:
+                    query = query.eq("semester", semester)
+                else:
+                    print("[VERIFICATION] semester not extracted – matching by student_id only.")
 
-                        wb = openpyxl.load_workbook(excel_file, data_only=True)
-                        ws = wb.active
+                db_result = query.execute()
 
-                        # Header mapping
-                        headers = {}
-                        for idx, cell in enumerate(ws[1], start=1):
-                            if cell.value:
-                                normalized = (
-                                    str(cell.value).lower().replace(" ", "_").replace("-", "_")
-                                )
-                                headers[normalized] = idx
+                if db_result.data and len(db_result.data) > 0:
+                    best_match = db_result.data[0]  # The official database row
 
-                        # Map variations to standardized field names (kept from your original code)
-                        column_mapping = {
-                            "unicgpa": "cgpa",
-                            "grade": None,
-                            "completion_date": None,
-                            "university": "university_name",
-                            "course": "course_name",
-                            "semester": "semester",
-                            "year_of_passing": "year_of_passing",
-                            "issue_date": "issue_date",
-                            "certificate_number": "certificate_number",
-                            "issuing_authority": "issuing_authority",
-                            "subject_wise_grades": "subject_grades",
-                            "subjectwise_grades": "subject_grades",
-                            "source_file": "file_name",
-                            "upload_date": "upload_date",
-                            "extracted_at": "extracted_at",
-                        }
+                    match_score, current_subject_match_info = calculate_match_percentage_db(
+                        extracted_data, best_match
+                    )
 
-                        # Scan rows
-                        for row_idx in range(2, ws.max_row + 1):
-                            row_data = {}
-                            for col_name, col_idx in headers.items():
-                                cell_value = ws.cell(row_idx, col_idx).value
+                    best_match_score = match_score
+                    subject_match_info = current_subject_match_info
+                    print(f"[VERIFICATION] Supabase Match score: {best_match_score}%")
+            else:
+                if not _supabase:
+                    print("[VERIFICATION] Supabase client unavailable – skipping DB lookup.")
+                else:
+                    print("[VERIFICATION] No student_id extracted – skipping DB lookup.")
 
-                                if col_name in column_mapping:
-                                    mapped_name = column_mapping[col_name]
-                                    if mapped_name is None:
-                                        continue
-                                    col_key = mapped_name
-                                else:
-                                    col_key = col_name
-
-                                row_data[col_key] = (
-                                    str(cell_value) if cell_value is not None else ""
-                                )
-
-                            excel_student_id = row_data.get("student_id", "").strip()
-                            if excel_student_id and excel_student_id == student_id:
-                                match_score, current_subject_match_info = calculate_match_percentage_excel(
-                                    extracted_data, row_data
-                                )
-                                print(f"[VERIFICATION] Match score: {match_score}%")
-
-                                if match_score > best_match_score:
-                                    best_match_score = match_score
-                                    best_match = row_data
-                                    subject_match_info = current_subject_match_info
-                                    best_match["subject_match_info"] = subject_match_info
-                                    matched_file_name = excel_file.name
-
-                        wb.close()
-
-                    except Exception as file_error:
-                        print(f"[VERIFICATION] Error reading {excel_file.name}: {str(file_error)}")
-                        continue
-            
             # --- Populate result structure from best_match (if found) ---
             if best_match:
                 verification_result["database_match"] = {
                     "student_id": best_match.get("student_id", ""),
                     "student_name": best_match.get("student_name", ""),
-                    "university": best_match.get("university_name", ""),
+                    "university": best_match.get("institution_name", ""),
                     "course": best_match.get("course_name", ""),
                     "degree_type": best_match.get("degree_type", ""),
                     "cgpa": best_match.get("cgpa", ""),
                     "year_of_passing": best_match.get("year_of_passing", ""),
-                    "issuing_authority": best_match.get("issuing_authority", ""),
+                    "issuing_authority": best_match.get("institution_name", ""),
                 }
                 verification_result["match_percentage"] = best_match_score
-                verification_result["matched_file"] = matched_file_name
                 verification_result["subject_match_info"] = subject_match_info
-            
-            
-        except Exception as search_error:
-            print(f"[VERIFICATION] Search error: {str(search_error)}")
-            verification_result["verification_status"] = "error"
-            verification_result["error_message"] = f"Search error: {str(search_error)}"
-            
-        # --- PHASE 3: FINAL STATUS DETERMINATION AND MESSAGE ---
 
-        # Simplified status model for frontend:
-        # - "verified"       : strong match (>= 80%) or blockchain verified
-        # - "semi-verified"  : medium match (>= 60%)
-        # - "not_found"      : no records anywhere
-        # - other values      : treated as failure by UI
+        except Exception as db_error:
+            print(f"[VERIFICATION] Database search error: {str(db_error)}")
+
+        # --- PHASE 3: TWO-TIER FINAL STATUS DETERMINATION ---
+        # Tier 1 – Blockchain:  Is H_OCR on-chain?
+        # Tier 2 – Fuzzy match: Does OCR data agree with official_records?
+        #
+        # Decision matrix:
+        #   blockchain=True  AND score > 80  → "verified"
+        #   blockchain=True  AND score <= 80  → "forgery"   (hash matches but data drifted)
+        #   blockchain=False AND best_match    → "tampered_record"
+        #   no match at all                   → "not_found"
 
         HIGH_MATCH_THRESHOLD = 80.0
         MEDIUM_MATCH_THRESHOLD = 60.0
 
-        # If blockchain already proved authenticity, treat as verified
-        if verification_result["verification_status"] == "blockchain_verified":
-            verification_result["verification_status"] = "verified"
-            verification_result["message"] = (
-                "Certificate is fully verified against the immutable blockchain record. "
-                f"Local database match score: {best_match_score:.2f}%"
-                if best_match is not None
-                else "Certificate is fully verified against the immutable blockchain record."
+        db_blockchain_hash = best_match.get("blockchain_hash") if best_match else None
+
+        # Re-check blockchain using the DB-stored hash (authoritative)
+        if db_blockchain_hash:
+            is_on_blockchain = verify_hash_on_blockchain(db_blockchain_hash)
+            verification_result["is_on_blockchain"] = is_on_blockchain
+            print(
+                f"[VERIFICATION] DB hash blockchain check: "
+                f"{'VERIFIED' if is_on_blockchain else 'NOT FOUND'}"
             )
 
-        elif best_match:
-            # No blockchain proof, but we have a database match
-            if best_match_score >= HIGH_MATCH_THRESHOLD:
-                # High confidence: treat as verified as per requirement
-                verification_result["verification_status"] = "verified"
-                verification_result["message"] = (
-                    f"High-confidence match in institutional records (Match score: {best_match_score:.2f}%). "
-                    "Certificate is considered verified based on database records."
-                )
-            elif best_match_score >= MEDIUM_MATCH_THRESHOLD:
-                # Medium confidence: semi-verified
-                verification_result["verification_status"] = "semi-verified"
-                verification_result["message"] = (
-                    f"Partial match with institutional records (Match score: {best_match_score:.2f}%). "
-                    "Manual review recommended."
-                )
-            else:
-                # Low confidence despite finding a row
-                verification_result["verification_status"] = "failed"
-                verification_result["discrepancy_details"] = (
-                    f"Low-confidence match in institutional records (Match score: {best_match_score:.2f}%). "
-                    "Certificate data does not reliably match the database row."
-                )
-                verification_result["suggestion"] = (
-                    "Please re-scan or contact the issuing institution for manual verification."
-                )
-
+        if is_on_blockchain and best_match_score > HIGH_MATCH_THRESHOLD:
+            verification_result["verification_status"] = "verified"
+            verification_result["message"] = (
+                f"Certificate verified on blockchain and database match {best_match_score:.2f}%."
+            )
+        elif is_on_blockchain and best_match is not None and best_match_score <= HIGH_MATCH_THRESHOLD:
+            # Hash is on-chain but content doesn't match official records → likely forgery
+            verification_result["verification_status"] = "forgery"
+            verification_result["discrepancy_details"] = (
+                f"Blockchain hash found but data match is only {best_match_score:.2f}% "
+                "– certificate content may have been altered."
+            )
+            verification_result["suggestion"] = (
+                "Contact the issuing institution for manual review."
+            )
+        elif not is_on_blockchain and best_match is not None:
+            # Record in DB but hash not on-chain → tampered
+            verification_result["verification_status"] = "tampered_record"
+            verification_result["discrepancy_details"] = (
+                "Student record found in database but certificate hash is NOT on the blockchain. "
+                "The document may have been tampered with."
+            )
+        elif is_on_blockchain and best_match is None:
+            # Hash on-chain but no DB row (e.g., student uploaded their own cert)
+            verification_result["verification_status"] = "verified"
+            verification_result["message"] = (
+                "Certificate hash verified on blockchain. "
+                "No detailed record found in institutional database."
+            )
+        elif best_match and best_match_score >= HIGH_MATCH_THRESHOLD:
+            # Fallback: good DB match even without blockchain confirmation
+            verification_result["verification_status"] = "verified"
+            verification_result["message"] = (
+                f"High-confidence database match ({best_match_score:.2f}%). "
+                "Certificate is considered verified."
+            )
+        elif best_match and best_match_score >= MEDIUM_MATCH_THRESHOLD:
+            verification_result["verification_status"] = "semi-verified"
+            verification_result["message"] = (
+                f"Partial match with institutional records ({best_match_score:.2f}%). "
+                "Manual review recommended."
+            )
         else:
-            # No match found anywhere
             verification_result["verification_status"] = "not_found"
             verification_result["error_message"] = (
                 "Certificate not found on the blockchain or in the institutional registry."
@@ -603,12 +570,59 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
     return percentage, subject_match_info
 
 
+import difflib
+
+
 def similarity_ratio(str1, str2):
-    """Calculate similarity between two strings using simple character overlap"""
+    """Calculate similarity between two strings using difflib SequenceMatcher."""
     if not str1 or not str2:
         return 0.0
-    set1 = set(str1.lower())
-    set2 = set(str2.lower())
-    intersection = set1.intersection(set2)
-    union = set1.union(set2)
-    return len(intersection) / len(union) if len(union) > 0 else 0.0
+    return difflib.SequenceMatcher(None, str1.lower().strip(), str2.lower().strip()).ratio()
+
+
+def calculate_match_percentage_db(extracted_data, db_row):
+    """Calculate match percentage between OCR-extracted data and a Supabase official_records row.
+
+    Returns (percentage: float, subject_match_info: dict).
+    """
+    total_fields = 0
+    matched_fields = 0.0
+    match_details = []
+
+    def _compare(field_key, db_key=None, weight=1, exact=False):
+        nonlocal total_fields, matched_fields
+        db_key = db_key or field_key
+        v1 = str(extracted_data.get(field_key, "")).strip()
+        v2 = str(db_row.get(db_key, "")).strip()
+        total_fields += weight
+        if not v1 or not v2:
+            match_details.append(f"⊘ {field_key}: empty")
+            return
+        ratio = 1.0 if (exact and v1.lower() == v2.lower()) else similarity_ratio(v1, v2)
+        matched_fields += weight * ratio
+        sym = "✓" if ratio >= 0.85 else ("⚠" if ratio >= 0.6 else "✗")
+        match_details.append(f"{sym} {field_key}: '{v1}' vs '{v2}' ({ratio:.2f})")
+
+    _compare("student_id", weight=2, exact=True)
+    _compare("student_name", weight=1)
+    _compare("course_name", weight=1)
+    _compare("degree_type", weight=1)
+    _compare("cgpa", weight=1, exact=True)
+    _compare("year_of_passing", weight=1, exact=True)
+    # Direct Board/Authority comparison
+    db_board = str(db_row.get("issuing_authority", "")).upper().strip()
+    ocr_board = str(extracted_data.get("issuing_authority", "")).upper().strip()
+    board_score = similarity_ratio(db_board, ocr_board)
+    sym = "✓" if board_score > 0.8 else "✗"
+    match_details.append(f"  {sym} issuing_authority: '{ocr_board}' vs '{db_board}' ({board_score:.2f})")
+    total_fields += 1
+    matched_fields += board_score
+
+    percentage = round((matched_fields / total_fields) * 100, 2) if total_fields > 0 else 0.0
+
+    print("[MATCH DETAILS] Field-by-field comparison (DB):")
+    for d in match_details:
+        print(f"  {d}")
+    print(f"[MATCH SUMMARY] {matched_fields:.2f}/{total_fields} fields = {percentage}%")
+
+    return percentage, {}

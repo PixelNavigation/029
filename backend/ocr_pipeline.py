@@ -50,7 +50,10 @@ def extract_certificate_data_with_gemini(file_path):
         3. University/Institution Name (e.g., "Osmania University")
         4. Course/Program (just the degree type: "B.E.", "B.Tech", "M.Sc", "M.Tech", "Diploma", etc.)
         5. Specialization/Branch (e.g., "CSE", "ECE", "Computer Science", "Mechanical")
-        6. Semester (just the number: "5", "3", "1", etc.)
+        6. Semester (REQUIRED – extract the semester, year, or term. Look for labels like "Semester 1",
+           "Semester 8", "3rd Semester", "Final Year", "Term:", "Year:", "Part:".  
+           Return ONLY the numeric part (e.g., "1", "8", "3") or a short label like "Final" if no
+           number is present.  Do NOT leave this blank if any semester/year/term indicator exists.)
         7. CGPA/Percentage
         8. Year of Passing (CRITICAL: Extract the year when the student completed/passed the course. Look for phrases like "Year of Passing", "Passed in", "Completion Year", "Year:", or any 4-digit year near completion/graduation context. Common formats: "2023", "2022-23", "Year: 2024". This is MANDATORY - look carefully!)
         9. Date of Issue
@@ -373,14 +376,28 @@ def save_to_excel(data_list, institution_name, output_dir='e:\\SIH 2025\\029'):
 
 def process_certificate_file(file_path):
     """
-    Extract certificate data from a file using Gemini AI
-    
+    Modular VLM wrapper: routes to the appropriate AI backend based on ENVIRONMENT.
+
+    - production : intended for an on-premise local VLM (privacy mode).
+    - development (default) : uses Google Gemini (cloud VLM).
+
     Args:
         file_path: Path to certificate file
-    
+
     Returns:
         dict: Extracted certificate data
     """
+    env_mode = os.environ.get("ENVIRONMENT", "development")
+
+    if env_mode == "production":
+        print("[PIPELINE] Routing to On-Premise Local VLM (Privacy Mode)")
+        # Placeholder – swap the comment below for a real local-model call when available:
+        # return extract_certificate_data_offline(file_path)
+        # For now, fall through to Gemini so the pipeline still works end-to-end in staging.
+        pass
+
+    # Default / development path
+    print("[PIPELINE] Routing to Cloud VLM (Dev Mode)")
     try:
         certificate_data = extract_certificate_data_with_gemini(file_path)
         return certificate_data

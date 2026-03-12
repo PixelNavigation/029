@@ -75,7 +75,8 @@ export const StudentDashboard = () => {
   useEffect(() => {
     const generate = async () => {
       try {
-        const profileUrl = `${window.location.origin}/document-access/${displayUser.studentId}`;
+        const token = publicProfile?.profile_token || displayUser.studentId;
+        const profileUrl = `${window.location.origin}/wallet/${token}`;
         const dataUrl = await generateQrCode(profileUrl, { size: 300 });
         setDummyQrCode(dataUrl);
       } catch (err) {
@@ -83,7 +84,7 @@ export const StudentDashboard = () => {
       }
     };
     generate();
-  }, [displayUser.name, displayUser.studentId]);
+  }, [displayUser.name, displayUser.studentId, publicProfile?.profile_token]);
 
   // Fetch public profile from backend and merge
   useEffect(() => {
@@ -199,7 +200,7 @@ export const StudentDashboard = () => {
       for (const file of uploadedFiles) {
         try {
           setUploadProgress(prev => ({ ...prev, [file.id]: 'uploading' }));
-          
+
           const response = await authAPI.uploadCertificate(
             file.file,
             user.studentId,
@@ -271,7 +272,8 @@ export const StudentDashboard = () => {
 
     setGeneratingQr(true);
     try {
-      const profileUrl = `${window.location.origin}/document-access/${displayUser.studentId}`;
+      const token = publicProfile?.profile_token || displayUser.studentId;
+      const profileUrl = `${window.location.origin}/wallet/${token}`;
 
       const dataUrl = await generateQrCode(profileUrl, { size: 512 });
       setQrCodeDataUrl(dataUrl);
@@ -290,7 +292,8 @@ export const StudentDashboard = () => {
     }
 
     try {
-      const profileUrl = `${window.location.origin}/document-access/${displayUser.studentId}`;
+      const token = publicProfile?.profile_token || displayUser.studentId;
+      const profileUrl = `${window.location.origin}/wallet/${token}`;
 
       await downloadQrCode(
         profileUrl,
@@ -427,15 +430,15 @@ export const StudentDashboard = () => {
   const startQRScanning = async () => {
     setIsScanning(true);
     setScannedDocuments(null);
-    
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
-        
+
         // Simulate QR code detection after 3 seconds
         setTimeout(() => {
           if (isScanning) {
@@ -456,7 +459,7 @@ export const StudentDashboard = () => {
 
   const handleQRDetected = () => {
     setIsValidating(true);
-    
+
     // Simulate QR code scanning and document retrieval
     setTimeout(() => {
       const studentData = simulateQRScan();
@@ -507,7 +510,7 @@ export const StudentDashboard = () => {
                 <p className="text-sm text-gray-600">Document Submission & Management</p>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-700">
                 Welcome, <span className="font-medium">{currentUser?.name}</span>
@@ -547,59 +550,59 @@ export const StudentDashboard = () => {
                   const cardClasses = isVerified
                     ? 'bg-green-50 border-green-200'
                     : isSemiVerified
-                    ? 'bg-yellow-50 border-yellow-200'
-                    : 'bg-red-50 border-red-200';
+                      ? 'bg-yellow-50 border-yellow-200'
+                      : 'bg-red-50 border-red-200';
                   const badgeClasses = isVerified
                     ? 'bg-green-100 text-green-800'
                     : isSemiVerified
-                    ? 'bg-yellow-100 text-yellow-800'
-                    : 'bg-red-100 text-red-800';
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : 'bg-red-100 text-red-800';
                   const label = isVerified
                     ? '✓ Verified'
                     : isSemiVerified
-                    ? '⚠ Semi-verified'
-                    : '✗ Unable to Verify';
+                      ? '⚠ Semi-verified'
+                      : '✗ Unable to Verify';
 
                   return (
-                  <div
-                    key={cert.id}
-                    className={`p-4 border rounded-lg transition-all hover:shadow-md ${cardClasses}`}
-                  >
-                    <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0 mt-1">
-                        {isVerified ? (
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                        ) : isSemiVerified ? (
-                          <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                        ) : (
-                          <XCircle className="h-5 w-5 text-red-600" />
-                        )}
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate" title={cert.file_name}>
-                          {cert.file_name}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {cert.document_type || 'Certificate'}
-                        </p>
-                        
-                        <div className={`inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium ${badgeClasses}`}>
-                          {label}
+                    <div
+                      key={cert.id}
+                      className={`p-4 border rounded-lg transition-all hover:shadow-md ${cardClasses}`}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 mt-1">
+                          {isVerified ? (
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                          ) : isSemiVerified ? (
+                            <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                          ) : (
+                            <XCircle className="h-5 w-5 text-red-600" />
+                          )}
                         </div>
-                        
-                        <div className="mt-2 text-xs text-gray-500 space-y-1">
-                          {cert.file_size != null && (
-                            <p>Size: {formatFileSize(cert.file_size)}</p>
-                          )}
-                          {cert.uploaded_at && (
-                            <p>Uploaded: {new Date(cert.uploaded_at).toLocaleDateString()}</p>
-                          )}
-                          <p>ID: {cert.id}</p>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate" title={cert.file_name}>
+                            {cert.file_name}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {cert.document_type || 'Certificate'}
+                          </p>
+
+                          <div className={`inline-flex items-center px-2 py-1 mt-2 rounded-full text-xs font-medium ${badgeClasses}`}>
+                            {label}
+                          </div>
+
+                          <div className="mt-2 text-xs text-gray-500 space-y-1">
+                            {cert.file_size != null && (
+                              <p>Size: {formatFileSize(cert.file_size)}</p>
+                            )}
+                            {cert.uploaded_at && (
+                              <p>Uploaded: {new Date(cert.uploaded_at).toLocaleDateString()}</p>
+                            )}
+                            <p>ID: {cert.id}</p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
                   );
                 })}
               </div>
@@ -661,15 +664,15 @@ export const StudentDashboard = () => {
                 {...getRootProps()}
                 className={`
                   border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-300 mb-6
-                  ${isDragActive 
-                    ? 'border-green-500 bg-green-50' 
+                  ${isDragActive
+                    ? 'border-green-500 bg-green-50'
                     : 'border-gray-300 hover:border-gray-400'
                   }
                 `}
               >
                 <input {...getInputProps()} />
                 <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                
+
                 {isDragActive ? (
                   <div>
                     <p className="text-lg font-medium text-green-600 mb-2">Drop files here</p>
@@ -710,15 +713,14 @@ export const StudentDashboard = () => {
                       return (
                         <div
                           key={fileObj.id}
-                          className={`flex items-center justify-between p-4 rounded-lg border-2 ${
-                            expectedStatus === 'verified' 
-                              ? 'bg-green-50 border-green-200' 
+                          className={`flex items-center justify-between p-4 rounded-lg border-2 ${expectedStatus === 'verified'
+                              ? 'bg-green-50 border-green-200'
                               : expectedStatus === 'semi-verified'
-                              ? 'bg-yellow-50 border-yellow-200'
-                              : expectedStatus === 'unable-to-verify'
-                              ? 'bg-red-50 border-red-200'
-                              : 'bg-gray-50 border-gray-200'
-                          }`}
+                                ? 'bg-yellow-50 border-yellow-200'
+                                : expectedStatus === 'unable-to-verify'
+                                  ? 'bg-red-50 border-red-200'
+                                  : 'bg-gray-50 border-gray-200'
+                            }`}
                         >
                           <div className="flex items-center space-x-3 flex-1">
                             <div className="flex items-center space-x-2">
@@ -738,15 +740,14 @@ export const StudentDashboard = () => {
                                 <p className="font-medium text-gray-900 truncate text-sm">
                                   {fileObj.name}
                                 </p>
-                                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                                  expectedStatus === 'verified'
+                                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${expectedStatus === 'verified'
                                     ? 'bg-green-100 text-green-800'
                                     : expectedStatus === 'semi-verified'
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : expectedStatus === 'unable-to-verify'
-                                    ? 'bg-red-100 text-red-800'
-                                    : 'bg-gray-100 text-gray-800'
-                                }`}>
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : expectedStatus === 'unable-to-verify'
+                                        ? 'bg-red-100 text-red-800'
+                                        : 'bg-gray-100 text-gray-800'
+                                  }`}>
                                   {expectedStatus === 'verified' && 'Will be Verified'}
                                   {expectedStatus === 'semi-verified' && 'Will be Semi-Verified'}
                                   {expectedStatus === 'unable-to-verify' && 'Unable to Verify'}
@@ -774,21 +775,20 @@ export const StudentDashboard = () => {
               {/* Submit Button */}
               <div className="mt-6 pt-6 border-t">
                 <div className="space-y-3">
-                  <button 
+                  <button
                     onClick={handleSubmitDocuments}
                     disabled={uploadedFiles.length === 0 || isUploading}
-                    className={`w-full flex items-center justify-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-                      uploadedFiles.length > 0 && !isUploading
+                    className={`w-full flex items-center justify-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors ${uploadedFiles.length > 0 && !isUploading
                         ? 'bg-green-600 text-white hover:bg-green-700'
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
+                      }`}
                   >
                     <Send className="h-5 w-5" />
                     <span>
                       {isUploading ? 'Uploading to Storage...' : `Submit Documents for Verification (${uploadedFiles.length})`}
                     </span>
                   </button>
-                  
+
                   {uploadedFiles.length === 0 && !isUploading && (
                     <p className="text-xs text-gray-500 text-center mt-2">
                       Please upload documents to submit for verification
@@ -818,13 +818,12 @@ export const StudentDashboard = () => {
                   {submittedDocuments.map((doc) => (
                     <div
                       key={doc.verificationId}
-                      className={`p-4 rounded-lg border-2 ${
-                        doc.verificationStatus === 'verified'
+                      className={`p-4 rounded-lg border-2 ${doc.verificationStatus === 'verified'
                           ? 'border-green-200 bg-green-50'
                           : doc.verificationStatus === 'semi-verified'
-                          ? 'border-yellow-200 bg-yellow-50'
-                          : 'border-red-200 bg-red-50'
-                      }`}
+                            ? 'border-yellow-200 bg-yellow-50'
+                            : 'border-red-200 bg-red-50'
+                        }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -841,15 +840,14 @@ export const StudentDashboard = () => {
                               <XCircle className="h-5 w-5 text-red-600" />
                             )}
                           </div>
-                          
+
                           <div className="mb-3">
-                            <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
-                              doc.verificationStatus === 'verified'
+                            <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${doc.verificationStatus === 'verified'
                                 ? 'bg-green-100 text-green-800'
                                 : doc.verificationStatus === 'semi-verified'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}>
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
                               {doc.verificationStatus === 'verified' && 'Verified'}
                               {doc.verificationStatus === 'semi-verified' && 'Semi-Verified'}
                               {doc.verificationStatus === 'unable-to-verify' && 'Unable to Verify'}
@@ -868,13 +866,13 @@ export const StudentDashboard = () => {
                               ✓ Document successfully verified and authenticated by our system
                             </div>
                           )}
-                          
+
                           {doc.verificationStatus === 'semi-verified' && (
                             <div className="mt-3 p-2 bg-yellow-100 rounded text-sm text-yellow-700">
                               ⚠ Document requires additional verification - Manual review in progress
                             </div>
                           )}
-                          
+
                           {doc.verificationStatus === 'unable-to-verify' && (
                             <div className="mt-3 p-2 bg-red-100 rounded text-sm text-red-700">
                               ✗ Unable to verify document - Please contact support or provide alternative documentation
@@ -948,17 +946,17 @@ export const StudentDashboard = () => {
                   <Mail className="h-4 w-4 text-gray-400 flex-shrink-0" />
                   <span className="text-gray-600 truncate">{currentUser?.email}</span>
                 </div>
-                
+
                 <div className="flex items-center space-x-3 text-sm">
                   <BookOpen className="h-4 w-4 text-gray-400 flex-shrink-0" />
                   <span className="text-gray-600">{currentUser?.course}</span>
                 </div>
-                
+
                 <div className="flex items-center space-x-3 text-sm">
                   <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
                   <span className="text-gray-600">{currentUser?.year}</span>
                 </div>
-                
+
                 <div className="flex items-center space-x-3 text-sm">
                   <Building className="h-4 w-4 text-gray-400 flex-shrink-0" />
                   <span className="text-gray-600 text-xs">{currentUser?.university}</span>
@@ -978,7 +976,7 @@ export const StudentDashboard = () => {
                       <Linkedin className="h-4 w-4" />
                     </button>
                   )}
-                  
+
                   {currentUser?.socialLinks?.github && (
                     <button
                       onClick={() => openLink(currentUser.socialLinks.github)}
@@ -988,7 +986,7 @@ export const StudentDashboard = () => {
                       <Github className="h-4 w-4" />
                     </button>
                   )}
-                  
+
                   {currentUser?.socialLinks?.portfolio && (
                     <button
                       onClick={() => openLink(currentUser.socialLinks.portfolio)}
@@ -1007,14 +1005,14 @@ export const StudentDashboard = () => {
                   <QrCode className="h-4 w-4 mr-2" />
                   Document QR
                 </h4>
-                
+
                 {!isScanning && !scannedDocuments ? (
                   <div className="text-center">
                     <div className="mb-3 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
                       {dummyQrCode ? (
                         <div className="mb-3">
-                          <img 
-                            src={dummyQrCode} 
+                          <img
+                            src={dummyQrCode}
                             alt="Sample QR Code"
                             className="w-32 h-32 mx-auto mb-3 border-2 border-gray-300 rounded-lg shadow-sm"
                           />
@@ -1025,7 +1023,7 @@ export const StudentDashboard = () => {
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Copy QR and Share QR buttons */}
                     <div className="grid grid-cols-2 gap-2">
                       <button
@@ -1052,7 +1050,7 @@ export const StudentDashboard = () => {
                         <Copy className="h-3 w-3" />
                         <span>Copy QR</span>
                       </button>
-                      
+
                       <button
                         onClick={() => {
                           if (dummyQrCode && navigator.share) {
@@ -1107,7 +1105,7 @@ export const StudentDashboard = () => {
                     )}
                   </div>
                 ) : null}
-                
+
                 <canvas ref={canvasRef} className="hidden" />
               </div>
 
@@ -1156,11 +1154,10 @@ export const StudentDashboard = () => {
                       return (
                         <div
                           key={doc.id}
-                          className={`p-3 rounded-lg border text-sm ${
-                            doc.isGenuine 
-                              ? 'bg-green-50 border-green-200' 
+                          className={`p-3 rounded-lg border text-sm ${doc.isGenuine
+                              ? 'bg-green-50 border-green-200'
                               : 'bg-red-50 border-red-200'
-                          }`}
+                            }`}
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
@@ -1193,13 +1190,12 @@ export const StudentDashboard = () => {
                               )}
                             </div>
                           </div>
-                          
+
                           <div className="mt-2 flex items-center justify-between">
-                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                              doc.isGenuine 
-                                ? 'bg-green-100 text-green-800' 
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${doc.isGenuine
+                                ? 'bg-green-100 text-green-800'
                                 : 'bg-red-100 text-red-800'
-                            }`}>
+                              }`}>
                               {doc.isGenuine ? 'Authentic' : 'Flagged'}
                             </span>
                             <span className="text-xs text-gray-500">
@@ -1258,11 +1254,10 @@ export const StudentDashboard = () => {
       {/* QR Code Modal */}
       {showQrModal && qrCodeDataUrl && (
         <div className={`fixed inset-0 z-50 ${isFullscreen ? 'bg-white' : 'bg-black bg-opacity-75 flex items-center justify-center p-4'}`}>
-          <div className={`${
-            isFullscreen 
-              ? 'w-full h-full flex flex-col bg-white' 
+          <div className={`${isFullscreen
+              ? 'w-full h-full flex flex-col bg-white'
               : 'bg-white rounded-xl shadow-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto'
-          } transition-all duration-300`}>
+            } transition-all duration-300`}>
             <div className={`flex items-center justify-between ${isFullscreen ? 'p-6 border-b border-gray-200' : 'mb-6'}`}>
               <div className="flex items-center space-x-2">
                 <QrCode className="h-6 w-6 text-green-600" />
@@ -1299,14 +1294,13 @@ export const StudentDashboard = () => {
 
             <div className={`${isFullscreen ? 'flex-1 flex flex-col items-center justify-center p-8 overflow-auto' : 'text-center mb-6'}`}>
               <div className={`inline-block ${isFullscreen ? 'p-8' : 'p-4'} bg-white border-2 border-gray-200 rounded-lg shadow-lg`}>
-                <img 
-                  src={qrCodeDataUrl} 
-                  alt="Student Verification QR Code" 
-                  className={`mx-auto ${
-                    isFullscreen 
-                      ? 'w-80 h-80 sm:w-96 sm:h-96 md:w-[400px] md:h-[400px] lg:w-[500px] lg:h-[500px]' 
+                <img
+                  src={qrCodeDataUrl}
+                  alt="Student Verification QR Code"
+                  className={`mx-auto ${isFullscreen
+                      ? 'w-80 h-80 sm:w-96 sm:h-96 md:w-[400px] md:h-[400px] lg:w-[500px] lg:h-[500px]'
                       : 'w-64 h-64'
-                  }`}
+                    }`}
                 />
               </div>
               <div className={`${isFullscreen ? 'mt-8' : 'mt-4'} p-4 bg-blue-50 border border-blue-200 rounded-lg ${isFullscreen ? 'max-w-2xl' : 'max-w-lg'}`}>
@@ -1359,9 +1353,8 @@ export const StudentDashboard = () => {
             <div className={`flex ${isFullscreen ? 'justify-center flex-wrap gap-3 p-6 border-t border-gray-200 bg-white' : 'space-x-3'} mt-6`}>
               <button
                 onClick={downloadStudentQrCode}
-                className={`flex items-center justify-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors ${
-                  isFullscreen ? 'w-auto' : 'flex-1'
-                }`}
+                className={`flex items-center justify-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors ${isFullscreen ? 'w-auto' : 'flex-1'
+                  }`}
               >
                 <Eye className="h-5 w-5" />
                 <span>Download QR Code</span>
@@ -1400,17 +1393,16 @@ export const StudentDashboard = () => {
                     issuedAt: new Date().toISOString(),
                     signature: `ACVS_${Date.now()}_${currentUser?.studentId}`
                   };
-                  
+
                   const currentHost = window.location.origin;
                   const verificationUrl = `${currentHost}/verify?data=${encodeURIComponent(JSON.stringify(verificationData))}`;
-                  
+
                   const copyText = `Verification URL:\n${verificationUrl}\n\nVerification Data:\n${JSON.stringify(verificationData, null, 2)}`;
                   navigator.clipboard.writeText(copyText);
                   alert('Verification URL and data copied to clipboard!');
                 }}
-                className={`flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors ${
-                  isFullscreen ? 'w-auto' : 'flex-1'
-                }`}
+                className={`flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors ${isFullscreen ? 'w-auto' : 'flex-1'
+                  }`}
               >
                 <FileText className="h-5 w-5" />
                 <span>Copy Data</span>
@@ -1449,14 +1441,13 @@ export const StudentDashboard = () => {
                     issuedAt: new Date().toISOString(),
                     signature: `ACVS_${Date.now()}_${currentUser?.studentId}`
                   };
-                  
+
                   const currentHost = window.location.origin;
                   const verificationUrl = `${currentHost}/verify?data=${encodeURIComponent(JSON.stringify(verificationData))}`;
                   window.open(verificationUrl, '_blank');
                 }}
-                className={`flex items-center justify-center space-x-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors ${
-                  isFullscreen ? 'w-auto' : 'flex-1'
-                }`}
+                className={`flex items-center justify-center space-x-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors ${isFullscreen ? 'w-auto' : 'flex-1'
+                  }`}
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />

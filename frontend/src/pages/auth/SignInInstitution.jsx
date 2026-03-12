@@ -13,7 +13,7 @@ const arrayBufferToBase64 = (buffer) => {
 export default function SignInInstitution() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [institutionType, setInstitutionType] = useState('');
+  // Institution type removed, not required
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState('');
   const [keyFileName, setKeyFileName] = useState('');
@@ -22,16 +22,7 @@ export default function SignInInstitution() {
   const [demoPublicKey, setDemoPublicKey] = useState('');
   const fileInputRef = useRef(null);
 
-  const institutionTypes = [
-    'School',
-    'College',
-    'Central University',
-    'State University',
-    'Deemed University',
-    'Private University',
-    'Affiliated College',
-    'Autonomous College'
-  ];
+  // Institution types removed
 
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -52,7 +43,7 @@ export default function SignInInstitution() {
       const priv = localStorage.getItem('acvs_demo_univ_priv');
       if (pub) setDemoPublicKey(pub);
       if (priv) setDemoPrivateKey(priv);
-    } catch (e) {}
+    } catch (e) { }
   }, []);
 
   const signAndVerify = async (emailForSigning) => {
@@ -222,9 +213,7 @@ export default function SignInInstitution() {
         throw new Error('Please enter your password');
       }
 
-      if (!institutionType) {
-        throw new Error('Please select your institution type');
-      }
+      // Institution type check removed
 
       if (!extractedHashKey) {
         throw new Error('Please upload your institution hash key file');
@@ -240,8 +229,7 @@ export default function SignInInstitution() {
         body: JSON.stringify({
           email,
           password,
-          hashKey: extractedHashKey,
-          institutionType
+          hashKey: extractedHashKey
         }),
       });
 
@@ -298,7 +286,7 @@ export default function SignInInstitution() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       {/* Header with back button */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md mb-8">
-        <Link 
+        <Link
           to="/"
           className="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-6"
         >
@@ -325,38 +313,21 @@ export default function SignInInstitution() {
         <div className="bg-white py-8 px-4 shadow-xl sm:rounded-lg sm:px-10">
           <form className="space-y-6" onSubmit={handleSignIn}>
 
-            <div>
-              <label htmlFor="institution-type" className="block text-sm font-medium text-gray-700">Institution Type</label>
-              <div className="mt-1">
-                <select
-                  id="institution-type"
-                  name="institutionType"
-                  required
-                  value={institutionType}
-                  onChange={(e) => setInstitutionType(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                >
-                  <option value="">Select institution type</option>
-                  {institutionTypes.map(type => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            {/* Institution type dropdown removed */}
 
             <div>
               <label htmlFor="institution-email" className="block text-sm font-medium text-gray-700">Email address</label>
               <div className="mt-1">
-                <input 
-                  id="institution-email" 
-                  name="email" 
-                  type="email" 
+                <input
+                  id="institution-email"
+                  name="email"
+                  type="email"
                   autoComplete="email"
-                  required 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)} 
-                  placeholder="Enter your university email" 
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your university email"
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>
             </div>
@@ -364,16 +335,16 @@ export default function SignInInstitution() {
             <div>
               <label htmlFor="institution-password" className="block text-sm font-medium text-gray-700">Password</label>
               <div className="mt-1">
-                <input 
-                  id="institution-password" 
-                  name="password" 
-                  type="password" 
+                <input
+                  id="institution-password"
+                  name="password"
+                  type="password"
                   autoComplete="current-password"
-                  required 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)} 
-                  placeholder="Enter your password" 
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>
             </div>
@@ -381,19 +352,19 @@ export default function SignInInstitution() {
             <div>
               <label className="block text-sm font-medium text-gray-700">Institution Hash Key File</label>
               <div className="mt-1 flex items-center space-x-2">
-                <button 
-                  type="button" 
-                  onClick={() => fileInputRef.current?.click()} 
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
                   className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Upload Hash Key File
                 </button>
-                <input 
-                  ref={fileInputRef} 
-                  type="file" 
-                  accept=".txt,text/plain" 
-                  onChange={(e) => handleKeyFile(e.target.files && e.target.files[0])} 
-                  className="hidden" 
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,text/plain"
+                  onChange={(e) => handleKeyFile(e.target.files && e.target.files[0])}
+                  className="hidden"
                 />
                 {signing && <div className="text-sm text-gray-600">Verifying…</div>}
               </div>
@@ -428,9 +399,9 @@ export default function SignInInstitution() {
             {error && <div className="text-red-600 text-sm">{error}</div>}
 
             <div>
-              <button 
-                type="submit" 
-                disabled={signing} 
+              <button
+                type="submit"
+                disabled={signing}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
                 {signing ? 'Signing In...' : 'Sign In'}

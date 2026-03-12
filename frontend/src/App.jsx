@@ -13,6 +13,7 @@ import { UniversityDashboard } from './pages/institution/UniversityDashboard';
 import { CentralAuthorityDashboard } from './pages/admin/CentralAuthorityDashboard';
 import VerificationPage from './pages/VerificationPage';
 import DocumentAccessPage from './pages/DocumentAccessPage';
+import WalletPage from './pages/WalletPage';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -54,37 +55,38 @@ function App() {
             <Route path="/auth/university-signup" element={<UniversitySignUp />} />
             <Route path="/verify" element={<VerificationPage />} />
             <Route path="/document-access/:studentId" element={<DocumentAccessPage />} />
-            
+            <Route path="/wallet/:token" element={<WalletPage />} />
+
             {/* Protected Routes */}
-            <Route 
-              path="/student" 
+            <Route
+              path="/student"
               element={
                 <ProtectedRoute allowedRoles={['student']}>
                   <StudentDashboard />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/student/applications" 
+            <Route
+              path="/student/applications"
               element={
                 <ProtectedRoute allowedRoles={['student']}>
                   <StudentApplicationPortal />
                 </ProtectedRoute>
-              } 
+              }
             />
-            
+
             {/* University/Institution Routes */}
-            <Route 
-              path="/institution" 
+            <Route
+              path="/institution"
               element={
                 <ProtectedRoute allowedRoles={['institution']}>
                   <UniversityDashboard />
                 </ProtectedRoute>
-              } 
+              }
             />
-            
-            <Route 
-              path="/verifier" 
+
+            <Route
+              path="/verifier"
               element={
                 <ProtectedRoute allowedRoles={['verifier']}>
                   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -94,18 +96,18 @@ function App() {
                     </div>
                   </div>
                 </ProtectedRoute>
-              } 
+              }
             />
-            
-            <Route 
-              path="/admin" 
+
+            <Route
+              path="/admin"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <CentralAuthorityDashboard />
                 </ProtectedRoute>
-              } 
+              }
             />
-            
+
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

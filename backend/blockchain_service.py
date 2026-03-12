@@ -14,8 +14,8 @@ load_dotenv()
 # --- CONFIGURATION (MUST BE VERIFIED) ---
 
 # The address of your deployed contract on Sepolia
-# UPDATE THIS IF YOU REDEPLOY THE CONTRACT
-CONTRACT_ADDRESS = "0x762790707213673e44D920e7f4E00F167D03956a" 
+# Redeployed for clean Web3 slate (Phase 4 patch)
+CONTRACT_ADDRESS = "0xB8b01CD7D76af3222615AcC12876e631A03EDC86"
 
 # Load necessary secrets from environment
 SEPOLIA_RPC_URL = os.environ.get("SEPOLIA_RPC_URL")
@@ -123,16 +123,13 @@ def register_hashes_on_blockchain(hashes: list) -> list:
             raw_tx = getattr(signed_tx, "raw_transaction", None) or signed_tx.rawTransaction
             tx_hash = w3.eth.send_raw_transaction(raw_tx)
 
-            # 4. Wait for the transaction to be mined
-            receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-
+            # Non-blocking: return PENDING immediately; do not wait for receipt
             results.append({
                 "hash": hash_str,
-                "status": "SUCCESS" if receipt.status == 1 else "FAILED",
+                "status": "PENDING",
                 "tx_hash": tx_hash.hex(),
-                "block_number": receipt.blockNumber
             })
-            print(f"[BLOCKCHAIN] Registered hash {hash_str[:10]}... TX: {tx_hash.hex()}")
+            print(f"[BLOCKCHAIN] Submitted hash {hash_str[:10]}... TX: {tx_hash.hex()} (PENDING)")
 
         except Exception as e:
             print(f"[BLOCKCHAIN] Failed to register hash {hash_str}: {e}")

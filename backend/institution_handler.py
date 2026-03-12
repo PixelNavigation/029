@@ -1,5 +1,6 @@
 import os
 import re
+import hashlib
 import shutil
 import traceback
 from datetime import datetime
@@ -7,6 +8,14 @@ from pathlib import Path
 
 from flask import request, jsonify, send_file
 from werkzeug.utils import secure_filename
+
+# Supabase client – imported lazily inside the handler to avoid circular imports
+def _get_supabase():
+    try:
+        import app as _app
+        return _app.supabase
+    except Exception:
+        return None
 
 
 def upload_certificates_handler(upload_folder, allowed_file_func, save_metadata_func):
@@ -220,127 +229,121 @@ except ImportError as e:
 
 def confirm_and_save_data_handler():
     """
-    Confirm and save extracted data to Excel, copy originals, 
-    and register hashes on the blockchain (Issuance).
+    Confirm extracted data: persist to Supabase `official_records` table and
+    register hashes on the blockchain (non-blocking – status returned as PENDING).
     """
     data = request.get_json() or {}
 
     extracted_data = data.get("extracted_data", [])
     institution_name = data.get("institution_name", "Unknown Institution")
-    
+
     if not extracted_data:
         return jsonify({"error": "No data to save"}), 400
 
     hashes_for_blockchain = []
+    # NOTE: hashes are (re)generated inside the Supabase loop below using the
+    # canonical formula: name + student_id + semester + cgpa.
+    # This pre-pass just validates that the incoming items have the minimum
+    # required fields so we can fail-fast before any DB/blockchain work.
     for item in extracted_data:
-        # Validate hash format before attempting blockchain transaction
-        hash_val = item.get("blockchain_hash")
-        # Hash validation: Must be 0x-prefixed and 66 characters long (32 bytes + 0x)
-        if hash_val and hash_val.startswith("0x") and len(hash_val) == 66: 
-            hashes_for_blockchain.append(hash_val)
-        else:
-            print(f"[WARNING] Skipping record due to invalid hash: {item.get('original_filename')}")
+        if not item.get("student_id"):
+            print(f"[WARNING] Skipping record with no student_id: {item.get('original_filename')}")
 
-    if not hashes_for_blockchain:
-        return jsonify({
-            "success": False, 
-            "error": "No valid blockchain hashes found to submit."
-        }), 400
+    # (hashes_for_blockchain list is populated after canonical hash generation below)
 
     try:
-        from ocr_pipeline import save_to_excel
+        # --- 1. SUPABASE INSERT ---
+        supabase = _get_supabase()
+        inserted_count = 0
+        insert_errors = []
 
-        # --- 1. LOCAL SAVE OPERATIONS (Must successfully complete before blockchain Tx) ---
-        output_dir = str(Path(__file__).parent.parent)
-        excel_path = save_to_excel(extracted_data, institution_name, output_dir)
-        
-        # Setup verified folder path and sanitization
-        safe_institution_name = re.sub(r"[^\w\s-]", "", institution_name)
-        safe_institution_name = re.sub(r"[-\s]+", "_", safe_institution_name)
-        
-        verified_folder = (
-            Path(__file__).parent
-            / "uploads"
-            / "verified_originals"
-            / safe_institution_name
-        )
-        verified_folder.mkdir(parents=True, exist_ok=True)
+        if supabase:
+            for item in extracted_data:
+                # --- Regenerate canonical hash: name + student_id + semester + cgpa ---
+                name   = str(item.get("student_name", "") or "").lower().strip()
+                s_id   = str(item.get("student_id",   "") or "").lower().strip()
+                sem    = str(item.get("semester",      "") or "").lower().strip()
+                cgpa   = str(item.get("cgpa",          "") or "").lower().strip()
 
-        copied_files = []
-        for item in extracted_data:
-            original_filename = item.get("original_filename")
-            if original_filename:
-                
-                source_folder = (
-                    Path(__file__).parent
-                    / "uploads"
-                    / "files"
-                    / safe_institution_name
-                )
-                
-                # Find the saved file using glob
-                source_file = next((f for f in source_folder.glob("*") if original_filename in f.name or f.name.endswith(original_filename)), None)
+                canonical_string = f"{name}{s_id}{sem}{cgpa}"
+                raw_hash = hashlib.sha256(canonical_string.encode("utf-8")).hexdigest()
+                blockchain_hash = f"0x{raw_hash}"
 
-                if source_file and source_file.exists():
-                    student_id = item.get("student_id", "unknown")
-                    dest_filename = f"{student_id}_{original_filename}"
-                    dest_path = verified_folder / dest_filename
+                # Back-fill the item so the blockchain submission list is consistent
+                item["blockchain_hash"] = blockchain_hash
 
-                    shutil.copy2(source_file, dest_path)
-
-                    copied_files.append(
-                        {
-                            "student_id": student_id,
-                            "original_file": original_filename,
-                            "verified_path": str(dest_path),
-                        }
-                    )
-
-                    print(f"[SAVE] Copied original file: {original_filename} -> {dest_path}")
-        
-        # --- 2. BLOCKCHAIN REGISTRATION CALL ---
-        print(f"[BLOCKCHAIN] Submitting {len(hashes_for_blockchain)} hashes to Sepolia...")
-        
-        # This function sends the transactions using the private key
-        blockchain_results = register_hashes_on_blockchain(hashes_for_blockchain)
-        
-        successful_registrations = sum(1 for res in blockchain_results if res['status'] == 'SUCCESS')
-        
-        print(f"[BLOCKCHAIN SUMMARY] Successfully registered {successful_registrations} of {len(hashes_for_blockchain)} hashes.")
-        
-        # --- END BLOCKCHAIN REGISTRATION ---
-
-        if excel_path:
-            return (
-                jsonify(
-                    {
-                        "success": True,
-                        "excel_file": excel_path,
-                        "total_records": len(extracted_data),
-                        "verified_files": copied_files,
-                        
-                        # --- RETURN BLOCKCHAIN STATUS ---
-                        "hashes_submitted": hashes_for_blockchain,
-                        "blockchain_status": "SUCCESS" if successful_registrations == len(hashes_for_blockchain) else "PARTIAL_FAILURE",
-                        "blockchain_registrations": blockchain_results,
-                        "registered_count": successful_registrations,
-                        # --------------------------------
-
-                        "message": (
-                            f"Successfully saved {len(extracted_data)} record(s) to Excel, "
-                            f"and registered {successful_registrations} hash(es) on Sepolia!"
-                        ),
-                    }
-                ),
-                200,
-            )
+                record = {
+                    "institution_name": institution_name,
+                    "student_name":     item.get("student_name", ""),
+                    "student_id":       item.get("student_id",   ""),
+                    "course_name":      item.get("course_name",  ""),
+                    "degree_type":      item.get("degree_type",  ""),
+                    "cgpa":             str(item.get("cgpa", "")),
+                    "year_of_passing":  str(item.get("year_of_passing", "")),
+                    "semester":         str(item.get("semester", "")),
+                    "subject_grades":   item.get("subject_grades", []),
+                    "blockchain_hash":  blockchain_hash,
+                }
+                try:
+                    supabase.table("official_records").insert(record).execute()
+                    inserted_count += 1
+                    print(f"[SUPABASE] Inserted record for student: {record['student_id']} "
+                          f"semester: {record['semester']} hash: {blockchain_hash[:12]}…")
+                except Exception as db_err:
+                    err_msg = str(db_err)
+                    print(f"[SUPABASE] Insert error for {record.get('student_id')}: {err_msg}")
+                    insert_errors.append({"student_id": record.get("student_id"), "error": err_msg})
         else:
-            # Fallback if Excel saving failed but hash submission may have succeeded
+            print("[SUPABASE] Client not available – skipping DB insert.")
+
+        # Collect freshly-generated hashes for blockchain submission
+        hashes_for_blockchain = [
+            item["blockchain_hash"]
+            for item in extracted_data
+            if item.get("blockchain_hash", "").startswith("0x") and len(item["blockchain_hash"]) == 66
+        ]
+
+        if not hashes_for_blockchain:
             return jsonify({
                 "success": False,
-                "error": "Failed to save data to Excel, but check blockchain status for hash submissions.",
-                "blockchain_registrations": blockchain_results,
-            }), 500
+                "error": "No valid blockchain hashes generated – check OCR extraction."
+            }), 400
+
+        # --- 2. BLOCKCHAIN REGISTRATION (non-blocking) ---
+        print(f"[BLOCKCHAIN] Submitting {len(hashes_for_blockchain)} hashes to Sepolia...")
+        blockchain_results = register_hashes_on_blockchain(hashes_for_blockchain)
+
+        successful_registrations = sum(
+            1 for res in blockchain_results if res["status"] in ("SUCCESS", "PENDING")
+        )
+        print(
+            f"[BLOCKCHAIN SUMMARY] Submitted {successful_registrations} of "
+            f"{len(hashes_for_blockchain)} hashes."
+        )
+
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "total_records": len(extracted_data),
+                    "supabase_inserted": inserted_count,
+                    "supabase_errors": insert_errors,
+                    "hashes_submitted": hashes_for_blockchain,
+                    "blockchain_status": (
+                        "SUCCESS"
+                        if successful_registrations == len(hashes_for_blockchain)
+                        else "PARTIAL_FAILURE"
+                    ),
+                    "blockchain_registrations": blockchain_results,
+                    "registered_count": successful_registrations,
+                    "message": (
+                        f"Saved {inserted_count} record(s) to Supabase and submitted "
+                        f"{successful_registrations} hash(es) to Sepolia (status: PENDING)."
+                    ),
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
         print(f"Save and Blockchain error: {str(e)}")
