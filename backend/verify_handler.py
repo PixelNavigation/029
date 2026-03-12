@@ -1,10 +1,20 @@
 import os
 import uuid
 import traceback
+import hashlib
+import re
 from pathlib import Path
 
 from flask import jsonify
 from werkzeug.utils import secure_filename
+
+try:
+    import cv2
+    from pyzbar.pyzbar import decode as pyzbar_decode
+    QR_AVAILABLE = True
+except ImportError:
+    QR_AVAILABLE = False
+    print("WARNING: pyzbar/cv2 not available – QR fast-path disabled.")
 
 # Essential local imports
 from ocr_pipeline import process_certificate_file, normalize_extracted_data, create_certificate_hash
@@ -25,15 +35,106 @@ except ImportError as e:
 # --- END CRITICAL BLOCKCHAIN IMPORT ---
 
 
+def generate_canonical_hash(name, s_id, sem, cgpa):
+    """
+    Ensures data from ANY source (Excel, VLM, or QR) results in the same hash.
+    Normalize: strip whitespace, lowercase, concatenate, then SHA-256.
+    """
+    components = [str(name), str(s_id), str(sem), str(cgpa)]
+    canonical_string = "".join(c.strip().lower() for c in components)
+    raw_hash = hashlib.sha256(canonical_string.encode('utf-8')).hexdigest()
+    return f"0x{raw_hash}"
+
+
+def verify_qr_text_path(file_path, supabase_client):
+    """
+    Scan file_path for a QR code. If found and parseable, reconstruct the
+    canonical hash and do an O(1) Supabase lookup.
+
+    Returns a dict result on success, or None to fall through to VLM.
+    """
+    if not QR_AVAILABLE:
+        print("[QR] pyzbar/cv2 not installed – skipping QR fast-path.")
+        return None
+
+    try:
+        img = cv2.imread(str(file_path))
+        if img is None:
+            print(f"[QR] cv2 could not open file: {file_path}")
+            return None
+
+        detected = pyzbar_decode(img)
+        if not detected:
+            print("[QR] No QR code found in image.")
+            return None
+
+        qr_text = detected[0].data.decode('utf-8')
+        print(f"[QR DETECTED]: {qr_text}")
+
+        # Extract fields using flexible regex (case-insensitive)
+        s_id_m  = re.search(r'ID:\s*([\w]+)',          qr_text, re.I)
+        cgpa_m  = re.search(r'CGPA:\s*([\d\.]+)',      qr_text, re.I)
+        sem_m   = re.search(r'Sem(?:ester)?:\s*(\w+)', qr_text, re.I)
+        name_m  = re.search(r'Name:\s*([^|,\n]+)',     qr_text, re.I)
+
+        if not all([s_id_m, cgpa_m, sem_m, name_m]):
+            print("[QR] Could not extract all required fields from QR text – falling back to VLM.")
+            return None
+
+        name  = name_m.group(1).strip()
+        s_id  = s_id_m.group(1).strip()
+        sem   = sem_m.group(1).strip()
+        cgpa  = cgpa_m.group(1).strip()
+
+        target_hash = generate_canonical_hash(name, s_id, sem, cgpa)
+        print(f"[QR] Canonical hash: {target_hash}")
+
+        if supabase_client is None:
+            print("[QR] Supabase client not available – cannot do hash lookup.")
+            return None
+
+        db_result = (
+            supabase_client
+            .table('official_records')
+            .select('*')
+            .eq('blockchain_hash', target_hash)
+            .execute()
+        )
+
+        if db_result.data:
+            record = db_result.data[0]
+            print(f"[QR] Hash matched in Supabase: {record.get('student_id')}")
+            return {
+                "status": "SUCCESS",
+                "method": "QR_FAST_PATH",
+                "blockchain_hash": target_hash,
+                "extracted_qr": {
+                    "student_name": name,
+                    "student_id":   s_id,
+                    "semester":     sem,
+                    "cgpa":         cgpa,
+                },
+                "data": record,
+            }
+        else:
+            print("[QR] Hash not found in Supabase – falling back to VLM.")
+            return None
+
+    except Exception as e:
+        print(f"[QR] Error during QR scan: {e}")
+        return None
+
+
 def verify_certificate_upload(file, calculate_match_percentage_excel=None):
     """
     Core logic for certificate verification:
-    1. Blockchain Authenticity Check (H_OCR hash lookup)
-    2. Supabase O(1) lookup in official_records
-    3. Two-tier status determination (verified / forgery / tampered_record / not_found)
+    1. QR Fast-Path (pyzbar hash lookup – skips VLM entirely if matched)
+    2. Blockchain Authenticity Check (H_OCR hash lookup)
+    3. Supabase O(1) lookup in official_records
+    4. Two-tier status determination (verified / forgery / tampered_record / not_found)
     """
     try:
-        # --- PHASE 0: Setup and OCR Extraction ---
+        # --- PHASE 0: Setup and Save File ---
         uploads_dir = Path(__file__).parent / "uploads" / "verify"
         uploads_dir.mkdir(parents=True, exist_ok=True)
 
@@ -41,6 +142,78 @@ def verify_certificate_upload(file, calculate_match_percentage_excel=None):
         unique_name = f"{uuid.uuid4().hex}_{filename}"
         save_path = uploads_dir / unique_name
         file.save(str(save_path))
+
+        # --- QR FAST-PATH: Try QR before VLM/OCR ---
+        try:
+            import app as _app_qr
+            _supabase_qr = _app_qr.supabase
+        except Exception:
+            _supabase_qr = None
+
+        qr_result = verify_qr_text_path(str(save_path), _supabase_qr)
+        if qr_result and qr_result.get("status") == "SUCCESS":
+            record = qr_result["data"]
+            extracted = qr_result["extracted_qr"]
+
+            # Parse subject_grades from the DB record – stored as JSON list or string
+            raw_subjects = record.get("subject_grades", [])
+            if isinstance(raw_subjects, str):
+                try:
+                    import json as _json
+                    raw_subjects = _json.loads(raw_subjects)
+                except Exception:
+                    raw_subjects = []
+            if not isinstance(raw_subjects, list):
+                raw_subjects = []
+            # Normalise each entry so frontend always sees {subject_name, grade, marks, credits}
+            subject_grades_display = []
+            for s in raw_subjects:
+                if isinstance(s, dict):
+                    subject_grades_display.append({
+                        "subject_name": s.get("subject_name", s.get("name", "")),
+                        "grade":        s.get("grade", ""),
+                        "marks":        s.get("marks", ""),
+                        "credits":      s.get("credits", ""),
+                    })
+
+            # Build full extracted_data from QR + DB record for display
+            extracted_data_display = {
+                "student_name":    extracted.get("student_name", record.get("student_name", "")),
+                "student_id":      extracted.get("student_id",   record.get("student_id", "")),
+                "semester":        extracted.get("semester",     record.get("semester", "")),
+                "cgpa":            extracted.get("cgpa",         record.get("cgpa", "")),
+                "course_name":     record.get("course_name", ""),
+                "degree_type":     record.get("degree_type", ""),
+                "university_name": record.get("institution_name", ""),
+                "issuing_authority": record.get("issuing_authority", ""),
+                "year_of_passing": record.get("year_of_passing", ""),
+                "subject_grades":  subject_grades_display,
+            }
+            qr_verification_result = {
+                "extracted_data":       extracted_data_display,
+                "database_match":       {
+                    "student_id":       record.get("student_id", ""),
+                    "student_name":     record.get("student_name", ""),
+                    "university":       record.get("institution_name", ""),
+                    "course":           record.get("course_name", ""),
+                    "degree_type":      record.get("degree_type", ""),
+                    "cgpa":             record.get("cgpa", ""),
+                    "year_of_passing":  record.get("year_of_passing", ""),
+                    "issuing_authority": record.get("issuing_authority", ""),
+                },
+                "match_percentage":     100.0,
+                "verification_status":  "verified",
+                "method":               "QR_FAST_PATH",
+                "is_on_blockchain":     True,
+                "blockchain_hash":      qr_result["blockchain_hash"],
+                "message":              "Certificate verified via QR code (canonical hash matched in database).",
+            }
+            try:
+                os.remove(str(save_path))
+            except Exception:
+                pass
+            return jsonify({"success": True, "result": qr_verification_result}), 200
+        # --- END QR FAST-PATH ---
 
         print(f"[VERIFY] Extracting data from: {save_path}")
         extracted_data = process_certificate_file(str(save_path))
