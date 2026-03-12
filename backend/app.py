@@ -47,6 +47,8 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5000",
     "https://0cqvrx6t-5173.inc1.devtunnels.ms",
     "https://0cqvrx6t-5000.inc1.devtunnels.ms",
+    "https://hvhdg2gh-5000.inc1.devtunnels.ms",
+    "https://hvhdg2gh-5173.inc1.devtunnels.ms",
 ]
 
 CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}}, supports_credentials=True)
@@ -179,7 +181,7 @@ def signup():
         return jsonify({
             "success": True,
             "message": "Account created successfully! Please sign in with your credentials."
-        }), 201
+        }, 201)
             
     except Exception as e:
         print(f"Signup error: {str(e)}")
