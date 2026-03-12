@@ -68,57 +68,49 @@ export const LandingPage = () => {
     navigator.clipboard.writeText(text);
   };
 
-  const startCamera = async () => {
-    try {
-      setCameraError('');
-      setIsCameraOpen(true);
-
-      // Request camera permission
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment' // Use back camera if available
-        }
-      });
-
-      // Create video element to display camera feed
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      video.setAttribute('playsinline', true); // Required for iOS
-      video.play();
-
-      // QR code scanning
-      setTimeout(async () => {
-        // Stop camera
-        stream.getTracks().forEach(track => track.stop());
-        setIsCameraOpen(false);
-
-        setIsProcessing(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // TODO: Implement actual QR code verification
-        setIsProcessing(false);
-        alert('QR code verification system not yet implemented.');
-      }, 3000);
-
-    } catch (error) {
-      setIsCameraOpen(false);
-      console.error('Camera access error:', error);
-
-      if (error.name === 'NotAllowedError') {
-        setCameraError('Camera access denied. Please allow camera permission and try again.');
-      } else if (error.name === 'NotFoundError') {
-        setCameraError('No camera found on this device.');
-      } else if (error.name === 'NotSupportedError') {
-        setCameraError('Camera is not supported on this device.');
-      } else {
-        setCameraError('Failed to access camera. Please try again.');
-      }
-    }
+  const startCamera = () => {
+    // Trigger hidden camera-capture input
+    const input = document.getElementById('qr-camera-capture');
+    if (input) input.click();
   };
 
   const stopCamera = () => {
     setIsCameraOpen(false);
     setCameraError('');
+  };
+
+  const handleCameraCapture = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsCameraOpen(false);
+    setCameraError('');
+    setIsProcessing(true);
+    setVerificationResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_URL}/api/verify-upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setVerificationResult(data.result);
+      } else {
+        alert(data.error || 'QR verification failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Camera QR verification error:', error);
+      alert('Failed to verify QR code from camera. Please try again.');
+    } finally {
+      setIsProcessing(false);
+      e.target.value = '';
+    }
   };
 
   const features = [
@@ -220,19 +212,22 @@ export const LandingPage = () => {
                       {cameraError && (
                         <p className="text-red-600 text-xs mb-3">{cameraError}</p>
                       )}
+                      {/* Hidden input triggers native camera on mobile; file picker on desktop */}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        id="qr-camera-capture"
+                        className="hidden"
+                        onChange={handleCameraCapture}
+                      />
                       <button
-                        onClick={isCameraOpen ? stopCamera : startCamera}
+                        onClick={startCamera}
                         disabled={isProcessing}
-                        className={`px-4 py-2 rounded-lg transition-colors text-sm font-medium ${isCameraOpen
-                            ? 'bg-red-600 text-white hover:bg-red-700'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                          } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`px-4 py-2 rounded-lg transition-colors text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        {isProcessing ? 'Processing...' : isCameraOpen ? 'Stop Camera' : 'Start Scanning'}
+                        {isProcessing ? 'Processing...' : 'Start Scanning'}
                       </button>
-                      {isCameraOpen && (
-                        <p className="text-blue-600 text-xs mt-2">Camera is active - point at QR code</p>
-                      )}
                     </div>
 
                     {/* Upload QR Image */}
@@ -253,11 +248,32 @@ export const LandingPage = () => {
                           }
 
                           setIsProcessing(true);
-                          await new Promise(resolve => setTimeout(resolve, 1000));
+                          setVerificationResult(null);
 
-                          // TODO: Implement actual QR code verification from image
-                          setIsProcessing(false);
-                          alert('QR code verification from image not yet implemented.');
+                          try {
+                            const formData = new FormData();
+                            formData.append('file', file);
+
+                            const response = await fetch(`${API_URL}/api/verify-upload`, {
+                              method: 'POST',
+                              body: formData,
+                            });
+
+                            const data = await response.json();
+
+                            if (data.success) {
+                              setVerificationResult(data.result);
+                            } else {
+                              alert(data.error || 'QR verification failed. Please try again.');
+                            }
+                          } catch (error) {
+                            console.error('QR verification error:', error);
+                            alert('Failed to verify QR code. Please try again.');
+                          } finally {
+                            setIsProcessing(false);
+                            // Reset input so same file can be re-uploaded
+                            e.target.value = '';
+                          }
                         }}
                         className="hidden"
                         id="qr-upload"
@@ -294,12 +310,12 @@ export const LandingPage = () => {
 
             {/* Verification Status Banner */}
             <div className={`p-6 rounded-lg mb-6 ${verificationResult.verification_status === 'verified'
-                ? 'bg-green-50 border border-green-200'
-                : verificationResult.verification_status === 'semi-verified'
-                  ? 'bg-yellow-50 border border-yellow-200'
-                  : verificationResult.verification_status === 'not_found'
-                    ? 'bg-orange-50 border border-orange-200'
-                    : 'bg-red-50 border border-red-200'
+              ? 'bg-green-50 border border-green-200'
+              : verificationResult.verification_status === 'semi-verified'
+                ? 'bg-yellow-50 border border-yellow-200'
+                : verificationResult.verification_status === 'not_found'
+                  ? 'bg-orange-50 border border-orange-200'
+                  : 'bg-red-50 border border-red-200'
               }`}>
               <div className="flex items-center space-x-3">
                 {verificationResult.verification_status === 'verified' ? (
@@ -453,6 +469,7 @@ export const LandingPage = () => {
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Subject</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Grade</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Marks</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Credits</th>
                         </tr>
                       </thead>
@@ -497,10 +514,11 @@ export const LandingPage = () => {
                                 {(correctedSubject || matchedSubject) ? (correctedSubject?.excel_grade || matchedSubject?.excel_grade) : subject.grade || '-'}
                                 {(correctedSubject || matchedSubject) && (
                                   <span className="text-xs text-gray-500 ml-2">
-                                    (Database: {subject.grade})
+                                    (DB: {subject.grade})
                                   </span>
                                 )}
                               </td>
+                              <td className={`px-4 py-3 text-sm ${textColor}`}>{subject.marks || '-'}</td>
                               <td className={`px-4 py-3 text-sm ${textColor}`}>{subject.credits || '-'}</td>
                             </tr>
                           );
