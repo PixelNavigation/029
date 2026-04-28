@@ -1,21 +1,21 @@
 import os
 import re
 import json
+import mimetypes
 from datetime import datetime
 from pathlib import Path
-from PIL import Image
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import pandas as pd
 import hashlib
 import uuid
 
 
 def setup_gemini():
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY not found in environment variables")
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel('gemini-2.5-flash')
+    return genai.Client(api_key=api_key)
 
 
 def extract_certificate_data_with_gemini(file_path):
@@ -26,20 +26,22 @@ def extract_certificate_data_with_gemini(file_path):
         dict: Extracted certificate data
     """
     try:
-        model = setup_gemini()
+        client = setup_gemini()
         
         # Determine file type and handle accordingly
         file_ext = os.path.splitext(file_path)[1].lower()
         
         # For PDFs, upload directly to Gemini
         if file_ext == '.pdf':
-            # Upload PDF file to Gemini
-            uploaded_file = genai.upload_file(file_path)
+            uploaded_file = client.files.upload(file=file_path)
             content_input = uploaded_file
         else:
-            # For images, open with PIL
-            img = Image.open(file_path)
-            content_input = img
+            mime_type, _ = mimetypes.guess_type(file_path)
+            if not mime_type:
+                mime_type = "image/jpeg"
+            with open(file_path, "rb") as f:
+                image_bytes = f.read()
+            content_input = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
         
         # Prompt for Gemini to extract certificate details
         prompt = """
@@ -88,7 +90,10 @@ def extract_certificate_data_with_gemini(file_path):
         """
         
         # Generate content with Gemini
-        response = model.generate_content([prompt, content_input])
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt, content_input],
+        )
         
         # Parse the response
         response_text = response.text.strip()

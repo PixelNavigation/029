@@ -2,7 +2,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/auth';
 import { LandingPage } from './pages/LandingPage';
-import SignInAdmin from './pages/auth/SignInAdmin';
 import SignInInstitution from './pages/auth/SignInInstitution';
 import SignInStudent from './pages/auth/SignInStudent';
 import SignUpStudent from './pages/auth/SignUpStudent';
@@ -10,7 +9,6 @@ import { UniversitySignUp } from './pages/auth/UniversitySignUp';
 import { StudentDashboard } from './pages/student/StudentDashboard';
 import { StudentApplicationPortal } from './pages/student/StudentApplicationPortal';
 import { UniversityDashboard } from './pages/institution/UniversityDashboard';
-import { CentralAuthorityDashboard } from './pages/admin/CentralAuthorityDashboard';
 import VerificationPage from './pages/VerificationPage';
 import DocumentAccessPage from './pages/DocumentAccessPage';
 
@@ -47,44 +45,43 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
-            <Route path="/auth/signin-admin" element={<SignInAdmin />} />
             <Route path="/auth/signin-institution" element={<SignInInstitution />} />
             <Route path="/auth/signin-student" element={<SignInStudent />} />
             <Route path="/auth/signup-student" element={<SignUpStudent />} />
             <Route path="/auth/university-signup" element={<UniversitySignUp />} />
             <Route path="/verify" element={<VerificationPage />} />
             <Route path="/document-access/:studentId" element={<DocumentAccessPage />} />
-            
+
             {/* Protected Routes */}
-            <Route 
-              path="/student" 
+            <Route
+              path="/student"
               element={
                 <ProtectedRoute allowedRoles={['student']}>
                   <StudentDashboard />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/student/applications" 
+            <Route
+              path="/student/applications"
               element={
                 <ProtectedRoute allowedRoles={['student']}>
                   <StudentApplicationPortal />
                 </ProtectedRoute>
-              } 
+              }
             />
-            
+
             {/* University/Institution Routes */}
-            <Route 
-              path="/institution" 
+            <Route
+              path="/institution"
               element={
                 <ProtectedRoute allowedRoles={['institution']}>
                   <UniversityDashboard />
                 </ProtectedRoute>
-              } 
+              }
             />
-            
-            <Route 
-              path="/verifier" 
+
+            <Route
+              path="/verifier"
               element={
                 <ProtectedRoute allowedRoles={['verifier']}>
                   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -94,18 +91,10 @@ function App() {
                     </div>
                   </div>
                 </ProtectedRoute>
-              } 
+              }
             />
-            
-            <Route 
-              path="/admin" 
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <CentralAuthorityDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            
+
+
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
