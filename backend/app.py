@@ -3,16 +3,15 @@ import json
 import hashlib
 import uuid
 import re
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request
 from flask_cors import CORS
-from supabase import create_client
+from supabase_client import get_supabase
 from dotenv import load_dotenv
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from pathlib import Path
 from verify_handler import (
     verify_certificate_upload as verify_certificate_upload_handler,
-    calculate_match_percentage_excel,
 )
 from ocr_pipeline import process_certificate_file, normalize_extracted_data, create_certificate_hash
 
@@ -47,8 +46,6 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5000",
     "https://0cqvrx6t-5173.inc1.devtunnels.ms",
     "https://0cqvrx6t-5000.inc1.devtunnels.ms",
-    "https://hvhdg2gh-5000.inc1.devtunnels.ms",
-    "https://hvhdg2gh-5173.inc1.devtunnels.ms",
 ]
 
 CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}}, supports_credentials=True)
@@ -64,54 +61,10 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 # Create uploads directory if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Create metadata file path
-METADATA_FILE = os.path.join(UPLOAD_FOLDER, 'uploads_metadata.json')
-
-
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-
-def save_metadata(metadata):
-    """Save upload metadata to JSON file"""
-    try:
-        existing_data = []
-        if os.path.exists(METADATA_FILE) and os.path.getsize(METADATA_FILE) > 0:
-            try:
-                with open(METADATA_FILE, 'r', encoding='utf-8') as f:
-                    existing_data = json.load(f)
-            except json.JSONDecodeError:
-                existing_data = []
-        
-        existing_data.append(metadata)
-        
-        with open(METADATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(existing_data, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        print(f"Error saving metadata: {str(e)}")
-
-
-def get_all_metadata():
-    """Retrieve all upload metadata"""
-    try:
-        if os.path.exists(METADATA_FILE) and os.path.getsize(METADATA_FILE) > 0:
-            with open(METADATA_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        return []
-    except json.JSONDecodeError:
-        print(f"Error reading metadata: Invalid JSON")
-        return []
-    except Exception as e:
-        print(f"Error reading metadata: {str(e)}")
-        return []
-
-
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
-supabase = None
-
-if SUPABASE_URL and SUPABASE_ANON_KEY:
-    supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+supabase = get_supabase()
 
 
 @app.route("/health", methods=["GET"])
@@ -575,13 +528,13 @@ def get_public_profile(student_id):
 @app.route("/api/institution/upload-certificates", methods=["POST"])
 def upload_certificates():
     """Wrapper delegating bulk upload logic to `institution_handler`."""
-    return upload_certificates_handler(UPLOAD_FOLDER, allowed_file, save_metadata)
+    return upload_certificates_handler(UPLOAD_FOLDER, allowed_file, supabase)
 
 
 @app.route("/api/institution/uploads", methods=["GET"])
 def get_uploads():
     """Wrapper delegating uploads listing logic to `institution_handler`."""
-    return get_uploads_handler(get_all_metadata)
+    return get_uploads_handler(supabase)
 
 
 @app.route("/api/files/preview/<institution_name>/<filename>", methods=["GET"])
@@ -593,7 +546,7 @@ def preview_file(institution_name, filename):
 @app.route("/api/institution/confirm-data", methods=["POST"])
 def confirm_and_save_data():
     """Wrapper delegating confirm/save logic to `institution_handler`."""
-    return confirm_and_save_data_handler()
+    return confirm_and_save_data_handler(supabase)
 
 
 @app.route("/api/auth/institution/signup", methods=["POST"])
@@ -750,8 +703,7 @@ def verify_certificate_upload():
     if not allowed_file(file.filename):
         return jsonify({"error": "File type not allowed"}), 400
 
-    # Delegate to the shared handler, passing the helper used for Excel scoring
-    return verify_certificate_upload_handler(file, calculate_match_percentage_excel)
+    return verify_certificate_upload_handler(file)
 
 
 if __name__ == "__main__":

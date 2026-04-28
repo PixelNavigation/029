@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import traceback
 from pathlib import Path
@@ -7,7 +8,8 @@ from flask import jsonify
 from werkzeug.utils import secure_filename
 
 # Essential local imports
-from ocr_pipeline import process_certificate_file, normalize_extracted_data, create_certificate_hash
+from ocr_pipeline import process_certificate_file, normalize_extracted_data
+from supabase_client import get_supabase
 
 # --- CRITICAL BLOCKCHAIN IMPORT ---
 # We import from the sibling module `blockchain_service.py` in the same folder.
@@ -25,7 +27,7 @@ except ImportError as e:
 # --- END CRITICAL BLOCKCHAIN IMPORT ---
 
 
-def verify_certificate_upload(file, calculate_match_percentage_excel):
+def verify_certificate_upload(file):
     """
     Core logic for certificate verification, performing sequential checks:
     1. Blockchain Authenticity Check (Hash Match)
@@ -75,27 +77,7 @@ def verify_certificate_upload(file, calculate_match_percentage_excel):
             "suggestion": None,          # NEW
         }
         
-        # --- PHASE 1: BLOCKCHAIN AUTHENTICITY CHECK ---
-        
-        # 1. Calculate the hash (H_OCR) from the extracted data
-        certificate_hash = create_certificate_hash(extracted_data)
-        verification_result["blockchain_hash"] = certificate_hash
-        
-        # 2. Check the hash against the blockchain (read-only, gas-free)
-        is_on_blockchain = verify_hash_on_blockchain(certificate_hash)
-        verification_result["is_on_blockchain"] = is_on_blockchain
-
-        print(f"[VERIFICATION] Calculated Hash (H_OCR): {certificate_hash}")
-        print(f"[VERIFICATION] Blockchain Status: {'VERIFIED' if is_on_blockchain else 'NOT FOUND'}")
-        
-        # Immediate success if hash is found on the blockchain
-        if is_on_blockchain:
-            verification_result["verification_status"] = "blockchain_verified"
-            verification_result["message"] = "Certificate is fully verified against the immutable blockchain record."
-            # We skip the Excel search here as authenticity is proven, but we will proceed to Phase 2 
-            # to retrieve the local data for display purposes if possible.
-        
-        # --- PHASE 2: LOCAL DATABASE MATCH (Required for data display & discrepancy analysis) ---
+        # --- PHASE 1: LOCAL DATABASE MATCH (Required for data display & discrepancy analysis) ---
 
         best_match = None
         best_match_score = 0
@@ -104,89 +86,40 @@ def verify_certificate_upload(file, calculate_match_percentage_excel):
 
         student_id = extracted_data.get("student_id", "").strip()
         student_name = extracted_data.get("student_name", "").strip()
-        
-        # NOTE: openpyxl must be imported before use
-        import openpyxl 
+
+        supabase = get_supabase()
 
         try:
+            if not supabase:
+                return jsonify({"error": "Database not configured"}), 503
+
             if student_id or student_name:
-                project_root = Path(__file__).parent.parent
-                excel_files = list(project_root.glob("*.xlsx"))
-                
-                print(f"[VERIFICATION] Found {len(excel_files)} Excel file(s) to search")
+                query = supabase.table("official_records").select("*")
 
-                for excel_file in excel_files:
-                    try:
-                        print(f"[VERIFICATION] Searching in file: {excel_file.name}")
+                if student_id:
+                    query = query.eq("student_id", student_id)
+                elif student_name:
+                    normalized_name = " ".join(_name_tokens(student_name))
+                    if normalized_name:
+                        query = query.ilike("student_name", f"%{normalized_name}%")
 
-                        wb = openpyxl.load_workbook(excel_file, data_only=True)
-                        ws = wb.active
+                result = query.execute()
+                rows = result.data or []
 
-                        # Header mapping
-                        headers = {}
-                        for idx, cell in enumerate(ws[1], start=1):
-                            if cell.value:
-                                normalized = (
-                                    str(cell.value).lower().replace(" ", "_").replace("-", "_")
-                                )
-                                headers[normalized] = idx
+                print(f"[VERIFICATION] Found {len(rows)} Supabase record(s) to search")
 
-                        # Map variations to standardized field names (kept from your original code)
-                        column_mapping = {
-                            "unicgpa": "cgpa",
-                            "grade": None,
-                            "completion_date": None,
-                            "university": "university_name",
-                            "course": "course_name",
-                            "semester": "semester",
-                            "year_of_passing": "year_of_passing",
-                            "issue_date": "issue_date",
-                            "certificate_number": "certificate_number",
-                            "issuing_authority": "issuing_authority",
-                            "subject_wise_grades": "subject_grades",
-                            "subjectwise_grades": "subject_grades",
-                            "source_file": "file_name",
-                            "upload_date": "upload_date",
-                            "extracted_at": "extracted_at",
-                        }
+                for row_data in rows:
+                    match_score, current_subject_match_info = calculate_match_percentage_db(
+                        extracted_data, row_data
+                    )
+                    print(f"[VERIFICATION] Match score: {match_score}%")
 
-                        # Scan rows
-                        for row_idx in range(2, ws.max_row + 1):
-                            row_data = {}
-                            for col_name, col_idx in headers.items():
-                                cell_value = ws.cell(row_idx, col_idx).value
-
-                                if col_name in column_mapping:
-                                    mapped_name = column_mapping[col_name]
-                                    if mapped_name is None:
-                                        continue
-                                    col_key = mapped_name
-                                else:
-                                    col_key = col_name
-
-                                row_data[col_key] = (
-                                    str(cell_value) if cell_value is not None else ""
-                                )
-
-                            excel_student_id = row_data.get("student_id", "").strip()
-                            if excel_student_id and excel_student_id == student_id:
-                                match_score, current_subject_match_info = calculate_match_percentage_excel(
-                                    extracted_data, row_data
-                                )
-                                print(f"[VERIFICATION] Match score: {match_score}%")
-
-                                if match_score > best_match_score:
-                                    best_match_score = match_score
-                                    best_match = row_data
-                                    subject_match_info = current_subject_match_info
-                                    best_match["subject_match_info"] = subject_match_info
-                                    matched_file_name = excel_file.name
-
-                        wb.close()
-
-                    except Exception as file_error:
-                        print(f"[VERIFICATION] Error reading {excel_file.name}: {str(file_error)}")
-                        continue
+                    if match_score > best_match_score:
+                        best_match_score = match_score
+                        best_match = row_data
+                        subject_match_info = current_subject_match_info
+                        best_match["subject_match_info"] = subject_match_info
+                        matched_file_name = "supabase"
             
             # --- Populate result structure from best_match (if found) ---
             if best_match:
@@ -210,6 +143,26 @@ def verify_certificate_upload(file, calculate_match_percentage_excel):
             verification_result["verification_status"] = "error"
             verification_result["error_message"] = f"Search error: {str(search_error)}"
             
+        # --- PHASE 2: BLOCKCHAIN AUTHENTICITY CHECK ---
+
+        certificate_hash = None
+        if best_match and best_match.get("blockchain_hash"):
+            certificate_hash = best_match.get("blockchain_hash")
+
+        if certificate_hash:
+            verification_result["blockchain_hash"] = certificate_hash
+            is_on_blockchain = verify_hash_on_blockchain(certificate_hash)
+            verification_result["is_on_blockchain"] = is_on_blockchain
+
+            print(f"[VERIFICATION] Calculated Hash (H_OCR): {certificate_hash}")
+            print(
+                f"[VERIFICATION] Blockchain Status: {'VERIFIED' if is_on_blockchain else 'NOT FOUND'}"
+            )
+
+            if is_on_blockchain:
+                verification_result["verification_status"] = "blockchain_verified"
+                verification_result["message"] = "Certificate is fully verified against the immutable blockchain record."
+
         # --- PHASE 3: FINAL STATUS DETERMINATION AND MESSAGE ---
 
         # Simplified status model for frontend:
@@ -287,10 +240,18 @@ def verify_certificate_upload(file, calculate_match_percentage_excel):
     return jsonify({"success": True, "result": verification_result}), 200
 
 
-# --- ESSENTIAL HELPER FUNCTIONS (KEPT FROM ORIGINAL CODE) ---
+# --- ESSENTIAL HELPER FUNCTIONS ---
 
-def calculate_match_percentage_excel(extracted_data, excel_row):
-    """Calculate match percentage between extracted data and Excel row."""
+def _name_tokens(value):
+    if not value:
+        return []
+    cleaned = re.sub(r"[^a-zA-Z0-9\s-]", " ", value.lower())
+    cleaned = cleaned.replace("-", " ")
+    return [token for token in cleaned.split() if token]
+
+
+def calculate_match_percentage_db(extracted_data, db_row):
+    """Calculate match percentage between extracted data and Supabase row."""
     total_fields = 0
     matched_fields = 0
     match_details = []
@@ -298,30 +259,41 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
     # Compare student_id (exact match - highest priority)
     total_fields += 2 
     extracted_id = extracted_data.get("student_id", "").strip().lower()
-    excel_id = excel_row.get("student_id", "").strip().lower()
-    if extracted_id == excel_id:
+    db_id = db_row.get("student_id", "").strip().lower()
+    if extracted_id == db_id:
         matched_fields += 2
-        match_details.append(f"✓ student_id: '{extracted_id}' == '{excel_id}'")
+        match_details.append(f"✓ student_id: '{extracted_id}' == '{db_id}'")
     else:
-        match_details.append(f"✗ student_id: '{extracted_id}' != '{excel_id}'")
+        match_details.append(f"✗ student_id: '{extracted_id}' != '{db_id}'")
 
-    # Compare student name
+    # Compare student name (token-level strategy)
     total_fields += 1
-    extracted_name = extracted_data.get("student_name", "").strip().lower()
-    excel_name = excel_row.get("student_name", "").strip().lower()
-    if extracted_name and excel_name:
-        if (
-            extracted_name == excel_name
-            or extracted_name in excel_name
-            or excel_name in extracted_name
-        ):
+    extracted_name_raw = extracted_data.get("student_name", "").strip()
+    excel_name_raw = db_row.get("student_name", "").strip()
+
+    extracted_tokens = _name_tokens(extracted_name_raw)
+    excel_tokens = _name_tokens(excel_name_raw)
+
+    if extracted_tokens and excel_tokens:
+        if len(extracted_tokens) == 1 or len(excel_tokens) == 1:
+            first_match = extracted_tokens[0] == excel_tokens[0]
+            last_similarity = 1.0
+        else:
+            first_match = extracted_tokens[0] == excel_tokens[0]
+            last_similarity = similarity_ratio(extracted_tokens[-1], excel_tokens[-1])
+
+        last_match = last_similarity >= 0.85
+        name_match = first_match and last_match
+
+        if name_match:
             matched_fields += 1
             match_details.append(
-                f"✓ student_name: '{extracted_name}' ≈ '{excel_name}'"
+                f"✓ student_name: first='{extracted_tokens[0]}'==" 
+                f"'{excel_tokens[0]}', last_sim={last_similarity:.2f}"
             )
         else:
             match_details.append(
-                f"✗ student_name: '{extracted_name}' != '{excel_name}'"
+                f"✗ student_name: first_match={first_match}, last_sim={last_similarity:.2f}"
             )
     else:
         match_details.append("⊘ student_name: Empty field")
@@ -329,7 +301,7 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
     # Compare university
     total_fields += 1
     extracted_uni = extracted_data.get("university_name", "").strip().lower()
-    excel_uni = excel_row.get("university_name", "").strip().lower()
+    excel_uni = db_row.get("university_name", "").strip().lower()
     if extracted_uni and excel_uni:
         if (
             extracted_uni == excel_uni
@@ -352,7 +324,7 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
     # Compare course
     total_fields += 1
     extracted_course = extracted_data.get("course_name", "").strip().lower()
-    excel_course = excel_row.get("course_name", "").strip().lower()
+    excel_course = db_row.get("course_name", "").strip().lower()
     if extracted_course and excel_course:
         if (
             extracted_course == excel_course
@@ -373,7 +345,7 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
     # Compare degree type
     total_fields += 1
     extracted_degree = extracted_data.get("degree_type", "").strip().lower()
-    excel_degree = excel_row.get("degree_type", "").strip().lower()
+    excel_degree = db_row.get("degree_type", "").strip().lower()
     if extracted_degree and excel_degree:
         if (
             extracted_degree == excel_degree
@@ -394,7 +366,7 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
     # Compare CGPA (allow small variance)
     total_fields += 1
     extracted_cgpa = extracted_data.get("cgpa", "").strip()
-    excel_cgpa = excel_row.get("cgpa", "").strip()
+    excel_cgpa = db_row.get("cgpa", "").strip()
     if extracted_cgpa and excel_cgpa:
         try:
             extracted_cgpa_float = float(extracted_cgpa)
@@ -424,7 +396,7 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
     # Compare year of passing
     total_fields += 1
     extracted_year = extracted_data.get("year_of_passing", "").strip()
-    excel_year = excel_row.get("year_of_passing", "").strip()
+    excel_year = db_row.get("year_of_passing", "").strip()
     if extracted_year and excel_year:
         if extracted_year == excel_year:
             matched_fields += 1
@@ -441,7 +413,7 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
     # Compare issuing authority
     total_fields += 1
     extracted_issuer = extracted_data.get("issuing_authority", "").strip().lower()
-    excel_issuer = excel_row.get("issuing_authority", "").strip().lower()
+    excel_issuer = db_row.get("issuing_authority", "").strip().lower()
     if extracted_issuer and excel_issuer:
         if (
             extracted_issuer == excel_issuer
@@ -461,7 +433,7 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
 
     # ===== SUBJECT GRADES COMPARISON (Keep the complex parsing and comparison logic) =====
     extracted_subjects = extracted_data.get("subject_grades", [])
-    excel_subjects_str = excel_row.get("subject_grades", "").strip()
+    excel_subjects_str = db_row.get("subject_grades", "")
     
     subject_match_info = {
         "matched": [],
@@ -472,7 +444,17 @@ def calculate_match_percentage_excel(extracted_data, excel_row):
     
     if excel_subjects_str:
         excel_subjects = []
-        if isinstance(excel_subjects_str, str) and excel_subjects_str:
+        if isinstance(excel_subjects_str, list):
+            for subj in excel_subjects_str:
+                if isinstance(subj, dict) and subj.get("subject_name"):
+                    excel_subjects.append(
+                        {
+                            "subject_name": subj.get("subject_name", ""),
+                            "grade": subj.get("grade", "") or subj.get("marks", ""),
+                            "credits": subj.get("credits", None),
+                        }
+                    )
+        elif isinstance(excel_subjects_str, str) and excel_subjects_str:
             parts = excel_subjects_str.split(';')
             for part in parts:
                 part = part.strip()

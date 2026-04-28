@@ -1,15 +1,13 @@
 import os
 import re
-import shutil
 import traceback
 from datetime import datetime
-from pathlib import Path
 
 from flask import request, jsonify, send_file
 from werkzeug.utils import secure_filename
 
 
-def upload_certificates_handler(upload_folder, allowed_file_func, save_metadata_func):
+def upload_certificates_handler(upload_folder, allowed_file_func, supabase):
     """Handle bulk certificate uploads from institutions.
 
     This function mirrors the previous `upload_certificates` route logic
@@ -76,8 +74,6 @@ def upload_certificates_handler(upload_folder, allowed_file_func, save_metadata_
                         "status": "uploaded",
                         "processed": False,
                     }
-
-                    save_metadata_func(file_metadata)
 
                     uploaded_files.append(
                         {
@@ -147,42 +143,72 @@ def upload_certificates_handler(upload_folder, allowed_file_func, save_metadata_
     )
 
 
-def get_uploads_handler(get_all_metadata_func):
+def get_uploads_handler(supabase):
     """Return grouped upload batches for an institution (if specified)."""
+    if not supabase:
+        return jsonify({"error": "Database not configured"}), 503
+
     institution_id = request.args.get("institution_id")
 
-    metadata = get_all_metadata_func()
+    try:
+        institution_name = None
+        if institution_id:
+            try:
+                inst_query = supabase.table("institutions").select("institution_name")
+                inst_result = inst_query.eq("id", institution_id).maybe_single().execute()
+                institution_name = inst_result.data.get("institution_name") if inst_result.data else None
 
-    if institution_id:
-        metadata = [m for m in metadata if m.get("institution_id") == institution_id]
+                if not institution_name:
+                    inst_result = (
+                        inst_query.eq("email", institution_id).maybe_single().execute()
+                    )
+                    institution_name = inst_result.data.get("institution_name") if inst_result.data else None
 
-    batches = {}
-    for item in metadata:
-        batch_id = item.get("batch_id")
-        if batch_id not in batches:
-            batches[batch_id] = {
-                "batch_id": batch_id,
-                "institution_name": item.get("institution_name"),
-                "uploaded_at": item.get("uploaded_at"),
-                "files": [],
-                "total_files": 0,
-                "processed_files": 0,
-            }
-        batches[batch_id]["files"].append(item)
-        batches[batch_id]["total_files"] += 1
-        if item.get("processed"):
-            batches[batch_id]["processed_files"] += 1
+                if not institution_name:
+                    inst_result = (
+                        inst_query.eq("institution_code", institution_id).maybe_single().execute()
+                    )
+                    institution_name = inst_result.data.get("institution_name") if inst_result.data else None
+            except Exception:
+                institution_name = None
 
-    return (
-        jsonify(
-            {
-                "success": True,
-                "batches": list(batches.values()),
-                "total_batches": len(batches),
-            }
-        ),
-        200,
-    )
+            if not institution_name:
+                institution_name = institution_id
+
+        query = supabase.table("official_records").select("*")
+        if institution_name:
+            query = query.eq("institution_name", institution_name)
+
+        result = query.execute()
+        records = result.data or []
+
+        batches = {}
+        for item in records:
+            batch_id = item.get("institution_name") or "institution"
+            if batch_id not in batches:
+                batches[batch_id] = {
+                    "batch_id": batch_id,
+                    "institution_name": item.get("institution_name"),
+                    "uploaded_at": None,
+                    "files": [],
+                    "total_files": 0,
+                    "processed_files": 0,
+                }
+            batches[batch_id]["files"].append(item)
+            batches[batch_id]["total_files"] += 1
+
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "batches": list(batches.values()),
+                    "total_batches": len(batches),
+                }
+            ),
+            200,
+        )
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch uploads: {str(e)}"}), 500
 
 
 def preview_file_handler(institution_name, filename, upload_folder):
@@ -218,7 +244,7 @@ except ImportError as e:
 # --- END CRITICAL IMPORTS ---
 
 
-def confirm_and_save_data_handler():
+def confirm_and_save_data_handler(supabase):
     """
     Confirm and save extracted data to Excel, copy originals, 
     and register hashes on the blockchain (Issuance).
@@ -230,6 +256,9 @@ def confirm_and_save_data_handler():
     
     if not extracted_data:
         return jsonify({"error": "No data to save"}), 400
+
+    if not supabase:
+        return jsonify({"error": "Database not configured"}), 503
 
     hashes_for_blockchain = []
     for item in extracted_data:
@@ -248,99 +277,58 @@ def confirm_and_save_data_handler():
         }), 400
 
     try:
-        from ocr_pipeline import save_to_excel
-
-        # --- 1. LOCAL SAVE OPERATIONS (Must successfully complete before blockchain Tx) ---
-        output_dir = str(Path(__file__).parent.parent)
-        excel_path = save_to_excel(extracted_data, institution_name, output_dir)
-        
-        # Setup verified folder path and sanitization
-        safe_institution_name = re.sub(r"[^\w\s-]", "", institution_name)
-        safe_institution_name = re.sub(r"[-\s]+", "_", safe_institution_name)
-        
-        verified_folder = (
-            Path(__file__).parent
-            / "uploads"
-            / "verified_originals"
-            / safe_institution_name
-        )
-        verified_folder.mkdir(parents=True, exist_ok=True)
-
-        copied_files = []
+        records_to_insert = []
         for item in extracted_data:
-            original_filename = item.get("original_filename")
-            if original_filename:
-                
-                source_folder = (
-                    Path(__file__).parent
-                    / "uploads"
-                    / "files"
-                    / safe_institution_name
-                )
-                
-                # Find the saved file using glob
-                source_file = next((f for f in source_folder.glob("*") if original_filename in f.name or f.name.endswith(original_filename)), None)
+            records_to_insert.append(
+                {
+                    "institution_name": institution_name,
+                    "student_name": item.get("student_name", ""),
+                    "student_id": item.get("student_id", ""),
+                    "course_name": item.get("course_name", ""),
+                    "degree_type": item.get("degree_type", ""),
+                    "cgpa": item.get("cgpa", ""),
+                    "year_of_passing": item.get("year_of_passing", ""),
+                    "blockchain_hash": item.get("blockchain_hash", ""),
+                    "subject_grades": item.get("subject_grades", []),
+                    "semester": item.get("semester", ""),
+                    "issuing_authority": item.get("issuing_authority", ""),
+                }
+            )
 
-                if source_file and source_file.exists():
-                    student_id = item.get("student_id", "unknown")
-                    dest_filename = f"{student_id}_{original_filename}"
-                    dest_path = verified_folder / dest_filename
+        insert_result = supabase.table("official_records").insert(records_to_insert).execute()
+        inserted_records = insert_result.data or []
 
-                    shutil.copy2(source_file, dest_path)
-
-                    copied_files.append(
-                        {
-                            "student_id": student_id,
-                            "original_file": original_filename,
-                            "verified_path": str(dest_path),
-                        }
-                    )
-
-                    print(f"[SAVE] Copied original file: {original_filename} -> {dest_path}")
-        
-        # --- 2. BLOCKCHAIN REGISTRATION CALL ---
+        # --- BLOCKCHAIN REGISTRATION CALL ---
         print(f"[BLOCKCHAIN] Submitting {len(hashes_for_blockchain)} hashes to Sepolia...")
-        
-        # This function sends the transactions using the private key
         blockchain_results = register_hashes_on_blockchain(hashes_for_blockchain)
-        
-        successful_registrations = sum(1 for res in blockchain_results if res['status'] == 'SUCCESS')
-        
-        print(f"[BLOCKCHAIN SUMMARY] Successfully registered {successful_registrations} of {len(hashes_for_blockchain)} hashes.")
-        
+        successful_registrations = sum(
+            1 for res in blockchain_results if res["status"] == "SUCCESS"
+        )
+        print(
+            f"[BLOCKCHAIN SUMMARY] Successfully registered {successful_registrations} of {len(hashes_for_blockchain)} hashes."
+        )
         # --- END BLOCKCHAIN REGISTRATION ---
 
-        if excel_path:
-            return (
-                jsonify(
-                    {
-                        "success": True,
-                        "excel_file": excel_path,
-                        "total_records": len(extracted_data),
-                        "verified_files": copied_files,
-                        
-                        # --- RETURN BLOCKCHAIN STATUS ---
-                        "hashes_submitted": hashes_for_blockchain,
-                        "blockchain_status": "SUCCESS" if successful_registrations == len(hashes_for_blockchain) else "PARTIAL_FAILURE",
-                        "blockchain_registrations": blockchain_results,
-                        "registered_count": successful_registrations,
-                        # --------------------------------
-
-                        "message": (
-                            f"Successfully saved {len(extracted_data)} record(s) to Excel, "
-                            f"and registered {successful_registrations} hash(es) on Sepolia!"
-                        ),
-                    }
-                ),
-                200,
-            )
-        else:
-            # Fallback if Excel saving failed but hash submission may have succeeded
-            return jsonify({
-                "success": False,
-                "error": "Failed to save data to Excel, but check blockchain status for hash submissions.",
-                "blockchain_registrations": blockchain_results,
-            }), 500
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "total_records": len(extracted_data),
+                    "saved_records": len(inserted_records),
+                    "hashes_submitted": hashes_for_blockchain,
+                    "blockchain_status": "SUCCESS"
+                    if successful_registrations == len(hashes_for_blockchain)
+                    else "PARTIAL_FAILURE",
+                    "blockchain_registrations": blockchain_results,
+                    "registered_count": successful_registrations,
+                    "message": (
+                        f"Successfully saved {len(inserted_records)} record(s) to Supabase, "
+                        f"and registered {successful_registrations} hash(es) on Sepolia!"
+                    ),
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
         print(f"Save and Blockchain error: {str(e)}")

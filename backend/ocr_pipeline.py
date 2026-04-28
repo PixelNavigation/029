@@ -7,6 +7,7 @@ from PIL import Image
 import google.generativeai as genai
 import pandas as pd
 import hashlib
+import uuid
 
 
 def setup_gemini():
@@ -157,39 +158,60 @@ def extract_certificate_data_with_gemini(file_path):
             "extracted_at": datetime.utcnow().isoformat()
         }
     
-def create_certificate_hash(certificate_data):
-    """Create a stable SHA-256 hash for a certificate.
+def create_certificate_hash(certificate_data, hash_salt=None):
+    """Create the canonical SHA-256 hash for a certificate.
 
-    As requested, the hash is now based ONLY on:
-      - student_name
-      - student_id
-      - grade/CGPA
+    H = SHA256(U || norm(Sn) || norm(Sid) || norm(C) || norm(Scores))
 
-    All three components are converted to lowercase and minor spacing
-    differences are ignored so that the same logical data always
-    produces the same hash on both the institution and verifier side.
+    - U: UUIDv4 cryptographic salt
+    - Sn: student name
+    - Sid: student ID
+    - C: CGPA
+    - Scores: subject-specific marks/grades
     """
 
     def _norm(value: str) -> str:
-        """Normalize a text value: strip, collapse spaces, lowercase."""
         if value is None:
             return ""
-        # Collapse multiple spaces and trim
         collapsed = re.sub(r"\s+", " ", str(value)).strip()
         return collapsed.lower()
 
+    def _normalize_scores(subject_grades):
+        if not subject_grades:
+            return ""
+
+        if isinstance(subject_grades, str):
+            return _norm(subject_grades)
+
+        normalized_items = []
+        for item in subject_grades:
+            if not isinstance(item, dict):
+                continue
+            subject_name = _norm(item.get("subject_name", ""))
+            score_value = item.get("marks") or item.get("grade") or ""
+            score = _norm(score_value)
+            if subject_name or score:
+                normalized_items.append((subject_name, score))
+
+        normalized_items.sort(key=lambda x: x[0])
+        return "|".join([f"{name}:{score}" for name, score in normalized_items])
+
+    salt = hash_salt or certificate_data.get("hash_salt")
+    if not salt:
+        salt = str(uuid.uuid4())
+
     student_name = _norm(certificate_data.get("student_name", ""))
     student_id = _norm(certificate_data.get("student_id", ""))
+    cgpa_value = certificate_data.get("cgpa") or certificate_data.get("grade") or ""
+    cgpa = _norm(cgpa_value)
+    scores = _normalize_scores(certificate_data.get("subject_grades", []))
 
-    # "grade" here can be CGPA or a generic grade field
-    grade_value = certificate_data.get("cgpa") or certificate_data.get("grade") or ""
-    grade = _norm(grade_value)
-
-    # Use a simple, explicit separator to avoid collisions
-    canonical_data = "|".join([student_name, student_id, grade])
-
+    canonical_data = "|".join([salt, student_name, student_id, cgpa, scores])
     encoded_data = canonical_data.encode("utf-8")
     sha256_hash = hashlib.sha256(encoded_data).hexdigest()
+
+    if isinstance(certificate_data, dict) and "hash_salt" not in certificate_data:
+        certificate_data["hash_salt"] = salt
 
     return "0x" + sha256_hash
 
@@ -238,7 +260,9 @@ def save_to_excel(data_list, institution_name, output_dir='e:\\SIH 2025\\029'):
             'subject_grades', 
             'file_name',
             'upload_date', 
-            'extracted_at'
+            'extracted_at',
+            'hash_salt',
+            'blockchain_hash'
         ]
         
         # Define user-friendly header names for Excel
@@ -258,7 +282,9 @@ def save_to_excel(data_list, institution_name, output_dir='e:\\SIH 2025\\029'):
             'subject_grades': 'Subject-wise Grades',
             'file_name': 'Source File',
             'upload_date': 'Upload Date',
-            'extracted_at': 'Extracted At'
+            'extracted_at': 'Extracted At',
+            'hash_salt': 'Hash Salt',
+            'blockchain_hash': 'Blockchain Hash'
         }
         
         # Prepare data with consistent columns
@@ -314,7 +340,9 @@ def save_to_excel(data_list, institution_name, output_dir='e:\\SIH 2025\\029'):
             'M': 60,  # Subject-wise Grades
             'N': 30,  # Source File
             'O': 15,  # Upload Date
-            'P': 20   # Extracted At
+            'P': 20,  # Extracted At
+            'Q': 20,  # Hash Salt
+            'R': 70   # Blockchain Hash
         }
         
         for col, width in column_widths.items():
