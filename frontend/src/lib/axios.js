@@ -13,7 +13,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // Get token from localStorage or auth store
-    const token = localStorage.getItem('acvs_token');
+    const token = sessionStorage.getItem('acvs_token') || localStorage.getItem('acvs_token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -37,6 +37,8 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       
       // Clear auth data and redirect to login
+      sessionStorage.removeItem('acvs_token');
+      sessionStorage.removeItem('acvs_user');
       localStorage.removeItem('acvs_token');
       localStorage.removeItem('acvs_user');
       

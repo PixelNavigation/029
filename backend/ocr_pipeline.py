@@ -59,7 +59,8 @@ def extract_certificate_data_with_gemini(file_path):
         9. Date of Issue
         10. Certificate Number
         11. Issuing Authority (the organization name like "Osmania University")
-        12. Subject-wise Grades (extract all subjects with their individual grades/marks)
+        12. Subject-wise Grades (extract all subjects with their individual grade/marks)
+        13. For the subject names dont include subject codes or numbers - just the name (e.g., "Data Structures", "Operating Systems")
         
         Return the data in JSON format with these keys:
         {
@@ -75,7 +76,7 @@ def extract_certificate_data_with_gemini(file_path):
             "certificate_number": "",
             "issuing_authority": "",
             "subject_grades": [
-                {"subject_name": "", "grade": "", "marks": "", "credits": ""}
+                {"subject_name": "", "grade": ""}
             ],
             "raw_text": ""
         }
@@ -172,7 +173,7 @@ def create_certificate_hash(certificate_data, hash_salt=None):
     - Sn: student name
     - Sid: student ID
     - C: CGPA
-    - Scores: subject-specific marks/grades
+    - Scores: subject-specific grade/marks
     """
 
     def _norm(value: str) -> str:
@@ -193,7 +194,7 @@ def create_certificate_hash(certificate_data, hash_salt=None):
             if not isinstance(item, dict):
                 continue
             subject_name = _norm(item.get("subject_name", ""))
-            score_value = item.get("marks") or item.get("grade") or ""
+            score_value = item.get("grade") or item.get("marks") or ""
             score = _norm(score_value)
             if subject_name or score:
                 normalized_items.append((subject_name, score))
@@ -301,8 +302,10 @@ def save_to_excel(data_list, institution_name, output_dir='e:\\SIH 2025\\029'):
                     # Format subject grades as readable string
                     subject_grades = data.get('subject_grades', [])
                     if isinstance(subject_grades, list) and subject_grades:
-                        grades_str = '; '.join([f"{sg.get('subject_name', '')}: {sg.get('grade', '')} ({sg.get('marks', '')})" 
-                                               for sg in subject_grades if sg.get('subject_name')])
+                        grades_str = '; '.join([
+                            f"{sg.get('subject_name', '')}: {sg.get('grade', '')}"
+                            for sg in subject_grades if sg.get('subject_name')
+                        ])
                         row[col] = grades_str
                     else:
                         row[col] = ''
@@ -519,6 +522,21 @@ def normalize_extracted_data(data):
     
     for field in standard_fields:
         normalized[field] = data.get(field, '')
+
+    # Normalize subject grades to use a single grade/marks value
+    subject_grades = normalized.get('subject_grades')
+    if isinstance(subject_grades, list):
+        cleaned_subjects = []
+        for item in subject_grades:
+            if not isinstance(item, dict):
+                continue
+            subject_name = item.get('subject_name', '')
+            grade_value = item.get('grade') or item.get('marks') or ''
+            cleaned_subjects.append({
+                'subject_name': subject_name,
+                'grade': grade_value
+            })
+        normalized['subject_grades'] = cleaned_subjects
     
     # Ensure degree_type is built from course + semester if not present
     if not normalized['degree_type'] and normalized['course_name'] and normalized['semester']:

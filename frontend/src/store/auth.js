@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 export const useAuthStore = create()(
   persist(
@@ -52,9 +52,9 @@ export const useAuthStore = create()(
               isLoading: false,
             });
             
-            // Store token in localStorage for axios interceptor
-            localStorage.setItem('acvs_token', token);
-            localStorage.setItem('acvs_user', JSON.stringify(user));
+            // Store token in sessionStorage for axios interceptor
+            sessionStorage.setItem('acvs_token', token);
+            sessionStorage.setItem('acvs_user', JSON.stringify(user));
             
             return { user, token };
           } else {
@@ -74,7 +74,9 @@ export const useAuthStore = create()(
           isLoading: false,
         });
         
-        // Clear localStorage
+        // Clear session storage and legacy localStorage keys
+        sessionStorage.removeItem('acvs_token');
+        sessionStorage.removeItem('acvs_user');
         localStorage.removeItem('acvs_token');
         localStorage.removeItem('acvs_user');
         
@@ -84,12 +86,12 @@ export const useAuthStore = create()(
 
       setUser: (user) => {
         set({ user, isAuthenticated: true });
-        localStorage.setItem('acvs_user', JSON.stringify(user));
+        sessionStorage.setItem('acvs_user', JSON.stringify(user));
       },
 
       setToken: (token) => {
         set({ token, isAuthenticated: true });
-        localStorage.setItem('acvs_token', token);
+        sessionStorage.setItem('acvs_token', token);
       },
 
       clearAuth: () => {
@@ -100,21 +102,24 @@ export const useAuthStore = create()(
           isLoading: false,
         });
         
+        sessionStorage.removeItem('acvs_token');
+        sessionStorage.removeItem('acvs_user');
         localStorage.removeItem('acvs_token');
         localStorage.removeItem('acvs_user');
       },
     }),
     {
       name: 'acvs-auth-storage',
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         user: state.user,
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {
-        // Initialize from localStorage if available
-        const storedToken = localStorage.getItem('acvs_token');
-        const storedUser = localStorage.getItem('acvs_user');
+        // Initialize from sessionStorage if available
+        const storedToken = sessionStorage.getItem('acvs_token');
+        const storedUser = sessionStorage.getItem('acvs_user');
         
         if (storedToken && storedUser && state) {
           try {
@@ -127,6 +132,10 @@ export const useAuthStore = create()(
             state.clearAuth();
           }
         }
+
+        // Clear any legacy localStorage auth data to prevent auto sign-in
+        localStorage.removeItem('acvs_token');
+        localStorage.removeItem('acvs_user');
       },
     }
   )

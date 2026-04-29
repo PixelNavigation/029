@@ -241,18 +241,14 @@ export const CertificatePreviewModal = ({
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Subject</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Grade</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Marks</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Credits</th>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Grade/Marks</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
                             {cert.subject_grades.map((subject, subIdx) => (
                               <tr key={subIdx}>
                                 <td className="px-3 py-2">{subject.subject_name || '-'}</td>
-                                <td className="px-3 py-2">{subject.grade || '-'}</td>
-                                <td className="px-3 py-2">{subject.marks || '-'}</td>
-                                <td className="px-3 py-2">{subject.credits || '-'}</td>
+                                <td className="px-3 py-2">{subject.grade || subject.marks || '-'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -281,8 +277,8 @@ export const CertificatePreviewModal = ({
               onClick={onConfirm}
               disabled={isProcessing}
               className={`px-6 py-2 rounded-lg transition-colors flex items-center space-x-2 ${!isProcessing
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
             >
               {isProcessing ? (
