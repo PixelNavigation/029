@@ -107,9 +107,14 @@ def upload_certificates_handler(upload_folder, allowed_file_func, supabase):
                 data = process_certificate_file(file_path)
                 data = normalize_extracted_data(data)
 
-                if "blockchain_hash" not in data:
+                # If OCR pipeline returns an error marker, propagate it so
+                # the frontend can alert the user instead of opening the preview.
+                if data is None:
+                    data = {"error": "No data extracted"}
+
+                if "blockchain_hash" not in data and not data.get("error"):
                     data["blockchain_hash"] = create_certificate_hash(data)
-        
+
                 data["preview_url"] = file_info["preview_url"]
                 data["original_filename"] = file_info["original_filename"]
                 extracted_data.append(data)
@@ -121,6 +126,22 @@ def upload_certificates_handler(upload_folder, allowed_file_func, supabase):
                 ),
                 500,
             )
+
+
+    # If any extraction item contains an error, return failure so the
+    # frontend can alert the user instead of opening the preview modal.
+    error_items = [d for d in extracted_data if d and d.get("error")]
+    if error_items:
+        # Build a concise error message listing affected files
+        filenames = ", ".join([d.get("original_filename") or "unknown" for d in error_items])
+        return (
+            jsonify({
+                "success": False,
+                "error": f"OCR extraction failed for: {filenames}",
+                "failed_files": error_items,
+            }),
+            500,
+        )
 
     return (
         jsonify(
@@ -246,7 +267,7 @@ except ImportError as e:
 
 def confirm_and_save_data_handler(supabase):
     """
-    Confirm and save extracted data to Excel, copy originals, 
+    Confirm and save extracted data to Blockchain, copy originals, 
     and register hashes on the blockchain (Issuance).
     """
     data = request.get_json() or {}

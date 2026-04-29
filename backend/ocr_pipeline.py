@@ -534,5 +534,9 @@ def normalize_extracted_data(data):
     # Keep original_filename if present (for institution uploads)
     if 'original_filename' in data:
         normalized['original_filename'] = data['original_filename']
+
+    # Preserve error information so callers can detect OCR failures
+    if isinstance(data, dict) and 'error' in data:
+        normalized['error'] = data.get('error')
     
     return normalized

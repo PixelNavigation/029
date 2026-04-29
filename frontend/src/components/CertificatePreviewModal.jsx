@@ -1,24 +1,24 @@
-import { 
-  X, 
-  Eye, 
-  User, 
-  GraduationCap, 
-  Award, 
-  FileCheck, 
-  Calendar, 
-  Shield, 
-  Loader, 
+import {
+  X,
+  Eye,
+  User,
+  GraduationCap,
+  Award,
+  FileCheck,
+  Calendar,
+  Shield,
+  Loader,
   Save,
   FileText
 } from 'lucide-react';
 
-export const CertificatePreviewModal = ({ 
-  show, 
-  previewData, 
-  isProcessing, 
-  onClose, 
-  onConfirm, 
-  onDataChange 
+export const CertificatePreviewModal = ({
+  show,
+  previewData,
+  isProcessing,
+  onClose,
+  onConfirm,
+  onDataChange
 }) => {
   if (!show || !previewData) return null;
 
@@ -36,7 +36,7 @@ export const CertificatePreviewModal = ({
             <X className="h-5 w-5" />
           </button>
         </div>
-        
+
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
           <div className="space-y-6">
             {previewData.map((cert, index) => (
@@ -65,7 +65,7 @@ export const CertificatePreviewModal = ({
                     </a>
                   )}
                 </div>
-                
+
                 <div className="p-4 bg-white">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* Student Info */}
@@ -265,7 +265,7 @@ export const CertificatePreviewModal = ({
             ))}
           </div>
         </div>
-        
+
         <div className="border-t p-6 bg-gray-50 flex justify-between items-center">
           <div className="text-sm text-gray-600">
             <span className="font-medium">{previewData.length}</span> certificate(s) ready to save
@@ -280,11 +280,10 @@ export const CertificatePreviewModal = ({
             <button
               onClick={onConfirm}
               disabled={isProcessing}
-              className={`px-6 py-2 rounded-lg transition-colors flex items-center space-x-2 ${
-                !isProcessing
+              className={`px-6 py-2 rounded-lg transition-colors flex items-center space-x-2 ${!isProcessing
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
+                }`}
             >
               {isProcessing ? (
                 <>
@@ -294,7 +293,7 @@ export const CertificatePreviewModal = ({
               ) : (
                 <>
                   <Save className="h-4 w-4" />
-                  <span>Confirm & Save to Excel</span>
+                  <span>Confirm & Upload to Blockchain</span>
                 </>
               )}
             </button>
