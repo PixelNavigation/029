@@ -12,7 +12,7 @@ def get_supabase():
         return _supabase
 
     supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_ANON_KEY")
+    supabase_key = os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_KEY")
 
     if not supabase_url or not supabase_key:
         _supabase = None
