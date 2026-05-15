@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { authAPI } from '../lib/api';
 
 export const DocumentAccessPage = () => {
-	const { studentId } = useParams();
+	const { studentId, token } = useParams();
 	const [profile, setProfile] = useState(null);
 	const [certificates, setCertificates] = useState([]);
 	const [loading, setLoading] = useState(true);
@@ -15,8 +15,8 @@ export const DocumentAccessPage = () => {
 			setError('');
 			try {
 				const [profileData, certData] = await Promise.all([
-					authAPI.getPublicProfile(studentId),
-					authAPI.getCertificates(studentId),
+					authAPI.getPublicProfile(studentId, token),
+					authAPI.getCertificates(studentId, token),
 				]);
 
 				setProfile(profileData);
@@ -28,15 +28,26 @@ export const DocumentAccessPage = () => {
 			}
 		};
 
-		if (studentId) {
+		if (studentId && token) {
 			loadData();
 		}
-	}, [studentId]);
+	}, [studentId, token]);
 
 	if (loading) {
 		return (
 			<div className="min-h-screen flex items-center justify-center bg-gray-50">
 				<p className="text-gray-600 text-lg">Loading student portfolio...</p>
+			</div>
+		);
+	}
+
+	if (!token) {
+		return (
+			<div className="min-h-screen flex items-center justify-center bg-gray-50">
+				<div className="bg-white rounded-xl shadow p-8 max-w-lg w-full text-center">
+					<h1 className="text-xl font-semibold text-gray-900 mb-2">Access denied</h1>
+					<p className="text-gray-600 mb-4">A valid access token is required to view this profile.</p>
+				</div>
 			</div>
 		);
 	}
@@ -88,9 +99,8 @@ export const DocumentAccessPage = () => {
 								return (
 									<li
 										key={cert.id || cert.certificateId || cert.file_name}
-										className={`flex flex-col md:flex-row md:items-center md:justify-between gap-2 border rounded-lg px-4 py-3 ${
-											isVerified ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-										}`}
+										className={`flex flex-col md:flex-row md:items-center md:justify-between gap-2 border rounded-lg px-4 py-3 ${isVerified ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+											}`}
 									>
 										<div className="flex-1 min-w-0">
 											<p className="font-medium text-gray-900 flex items-center gap-2 break-words">
@@ -113,7 +123,7 @@ export const DocumentAccessPage = () => {
 												className="text-sm text-blue-600 hover:underline md:ml-4 whitespace-nowrap"
 											>
 												View
-												</a>
+											</a>
 										)}
 									</li>
 								);

@@ -50,7 +50,7 @@ function App() {
             <Route path="/auth/signup-student" element={<SignUpStudent />} />
             <Route path="/auth/university-signup" element={<UniversitySignUp />} />
             <Route path="/verify" element={<VerificationPage />} />
-            <Route path="/document-access/:studentId" element={<DocumentAccessPage />} />
+            <Route path="/document-access/:studentId/:token" element={<DocumentAccessPage />} />
 
             {/* Protected Routes */}
             <Route

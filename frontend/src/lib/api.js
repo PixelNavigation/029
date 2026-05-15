@@ -33,8 +33,10 @@ export const authAPI = {
   },
 
   // Get student certificates from Supabase
-  getCertificates: async (studentId) => {
-    const response = await axios.get(`${API_URL}/api/student/certificates/${studentId}`);
+  getCertificates: async (studentId, token) => {
+    const response = await axios.get(`${API_URL}/api/student/certificates/${studentId}`, {
+      params: token ? { token } : undefined
+    });
     return response.data;
   },
 
@@ -56,8 +58,10 @@ export const authAPI = {
 ,
 
   // Fetch public profile by studentId
-  getPublicProfile: async (studentId) => {
-    const response = await axios.get(`${API_URL}/api/public_profiles/${encodeURIComponent(studentId)}`);
+  getPublicProfile: async (studentId, token) => {
+    const response = await axios.get(`${API_URL}/api/public_profiles/${encodeURIComponent(studentId)}`,
+      { params: token ? { token } : undefined }
+    );
     return response.data;
   }
 };

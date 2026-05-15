@@ -1,38 +1,65 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { QrCode, Camera, Upload, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { QrScanner } from '@yudiel/react-qr-scanner';
 
 export const QRVerification = () => {
   const [verificationResult, setVerificationResult] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
+  const [scanActive, setScanActive] = useState(false);
   const fileInputRef = useRef(null);
+  const navigate = useNavigate();
 
-  // Simplified QR verification function
-  const verifyQRData = async () => {
+  const handleQrPayload = async (payload) => {
+    if (!payload) return;
     setIsProcessing(true);
     setError('');
-    
+    setScanActive(false);
+
     try {
-      // Simulate quick verification
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Simplified mock result
-      const mockResult = {
-        isValid: Math.random() > 0.2, // 80% success rate for demo
-        studentName: 'John Doe Smith',
-        university: 'MIT University',
-        course: 'B.Tech Computer Science',
-        year: '2024',
-        certificateId: 'MIT2024CS001',
-        verifiedAt: new Date().toLocaleString()
-      };
-      
-      setVerificationResult(mockResult);
+      let url;
+      try {
+        url = new URL(payload);
+      } catch (err) {
+        url = null;
+      }
+
+      if (url && url.pathname.startsWith('/document-access/')) {
+        if (url.origin === window.location.origin) {
+          navigate(url.pathname, { replace: true });
+        } else {
+          window.location.assign(url.toString());
+        }
+        return;
+      }
+
+      setVerificationResult({
+        isValid: false,
+        message: 'QR code is not a valid ACVS document access link.'
+      });
     } catch (err) {
       setError('Verification failed. Please try again.');
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const decodeQrFromImage = async (file) => {
+    if (!('BarcodeDetector' in window)) {
+      throw new Error('QR image scanning is not supported in this browser.');
+    }
+
+    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+    const bitmap = await createImageBitmap(file);
+    const results = await detector.detect(bitmap);
+    if (bitmap && bitmap.close) bitmap.close();
+
+    if (!results.length) {
+      throw new Error('No QR code found in the image.');
+    }
+
+    return results[0].rawValue;
   };
 
   const handleFileUpload = async (event) => {
@@ -44,37 +71,45 @@ export const QRVerification = () => {
       return;
     }
 
-    // Simulate QR scan from image
-    await verifyQRData();
+    setIsProcessing(true);
+    setError('');
+
+    try {
+      const payload = await decodeQrFromImage(file);
+      await handleQrPayload(payload);
+    } catch (err) {
+      setError(err?.message || 'Verification failed. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleQuickScan = async () => {
-    // Simulate quick camera scan
-    await verifyQRData();
+    setError('');
+    setScanActive(true);
   };
 
   const resetVerification = () => {
     setVerificationResult(null);
     setError('');
     setIsProcessing(false);
+    setScanActive(false);
   };
 
   if (verificationResult) {
     return (
       <div className="bg-white rounded-2xl shadow-xl p-8">
         <div className="text-center mb-6">
-          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${
-            verificationResult.isValid ? 'bg-green-100' : 'bg-red-100'
-          }`}>
+          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${verificationResult.isValid ? 'bg-green-100' : 'bg-red-100'
+            }`}>
             {verificationResult.isValid ? (
               <CheckCircle className="h-8 w-8 text-green-600" />
             ) : (
               <XCircle className="h-8 w-8 text-red-600" />
             )}
           </div>
-          <h3 className={`text-2xl font-bold mb-2 ${
-            verificationResult.isValid ? 'text-green-800' : 'text-red-800'
-          }`}>
+          <h3 className={`text-2xl font-bold mb-2 ${verificationResult.isValid ? 'text-green-800' : 'text-red-800'
+            }`}>
             {verificationResult.isValid ? 'Certificate Verified ✓' : 'Verification Failed ✗'}
           </h3>
         </div>
@@ -107,7 +142,7 @@ export const QRVerification = () => {
           </div>
         ) : (
           <div className="bg-red-50 rounded-lg p-6 mb-6 text-center">
-            <p className="text-red-700">This certificate could not be verified. It may be invalid, expired, or not in our system.</p>
+            <p className="text-red-700">{verificationResult.message || 'This certificate could not be verified. It may be invalid, expired, or not in our system.'}</p>
           </div>
         )}
 
@@ -141,6 +176,14 @@ export const QRVerification = () => {
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className="text-gray-600 text-lg">Verifying certificate...</p>
+        </div>
+      ) : scanActive ? (
+        <div className="rounded-xl overflow-hidden border border-gray-200">
+          <QrScanner
+            onDecode={handleQrPayload}
+            onError={() => setError('Unable to read QR code. Please try again.')}
+            constraints={{ facingMode: 'environment' }}
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

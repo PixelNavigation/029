@@ -44,8 +44,9 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:5000",
     "http://127.0.0.1:5000",
-    "https://0cqvrx6t-5173.inc1.devtunnels.ms",
-    "https://0cqvrx6t-5000.inc1.devtunnels.ms",
+    "https://acvs.vercel.app",
+    "https://r2lzwrtb-5000.euw.devtunnels.ms",
+    "https://r2lzwrtb-5173.euw.devtunnels.ms",
 ]
 
 CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}}, supports_credentials=True)
@@ -118,6 +119,7 @@ def signup():
             return jsonify({"error": "Failed to create secure account record"}), 500
 
         # Insert public profile data into public_profiles table (non-sensitive)
+        share_token = uuid.uuid4().hex
         public_profile = {
             'student_id': data['studentId'],
             'name': data.get('name', ''),
@@ -126,7 +128,8 @@ def signup():
             'year': data.get('year', ''),
             'profile_photo': data.get('profilePhoto', ''),
             'social_links': data.get('socialLinks', {}),
-            'bio': data.get('bio', '')
+            'bio': data.get('bio', ''),
+            'share_token': share_token,
         }
 
         result_public = supabase.table('public_profiles').insert(public_profile).execute()
@@ -244,8 +247,23 @@ def signin():
             return jsonify({"error": "Invalid email or password"}), 401
 
         # Fetch public profile for this student_id (if exists)
-        public = supabase.table('public_profiles').select('*').eq('student_id', student.get('student_id')).maybe_single().execute()
+        public = (
+            supabase
+            .table('public_profiles')
+            .select('*')
+            .eq('student_id', student.get('student_id'))
+            .maybe_single()
+            .execute()
+        )
         public_data = public.data if public and public.data else {}
+
+        if public_data is not None and not public_data.get('share_token'):
+            share_token = uuid.uuid4().hex
+            try:
+                supabase.table('public_profiles').update({'share_token': share_token}).eq('student_id', student.get('student_id')).execute()
+                public_data['share_token'] = share_token
+            except Exception as update_err:
+                print(f"Share token update failed: {update_err}")
 
         # Build response (exclude password)
         user_data = {
@@ -262,7 +280,8 @@ def signin():
                 'course': public_data.get('course') if public_data else '',
                 'year': public_data.get('year') if public_data else '',
                 'profilePhoto': public_data.get('profile_photo') if public_data else f"https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff",
-                'socialLinks': public_data.get('social_links') if public_data else {}
+                'socialLinks': public_data.get('social_links') if public_data else {},
+                'share_token': public_data.get('share_token') if public_data else '',
             }
         }
 
@@ -352,11 +371,54 @@ def upload_student_certificate():
                 extracted_data = normalize_extracted_data(extracted_data)
 
                 if not extracted_data.get("error"):
-                    certificate_hash = create_certificate_hash(extracted_data)
-                    blockchain_hash = certificate_hash
-                    is_on_blockchain = verify_hash_on_blockchain(certificate_hash)
+                    official_record = None
+                    try:
+                        student_id_val = extracted_data.get("student_id", "").strip()
+                        student_name_val = extracted_data.get("student_name", "").strip()
+                        degree_val = extracted_data.get("degree_type", "").strip().lower()
+                        course_val = extracted_data.get("course_name", "").strip().lower()
+                        year_val = extracted_data.get("year_of_passing", "").strip()
 
-                    print(f"[STUDENT UPLOAD] Calculated Hash (H_OCR): {certificate_hash}")
+                        if student_id_val or student_name_val:
+                            record_query = supabase.table("official_records").select("*")
+                            if student_id_val:
+                                record_query = record_query.eq("student_id", student_id_val)
+                            elif student_name_val:
+                                record_query = record_query.ilike("student_name", f"%{student_name_val}%")
+
+                            record_result = record_query.execute()
+                            record_rows = record_result.data or []
+
+                            for row in record_rows:
+                                row_degree = (row.get("degree_type") or "").strip().lower()
+                                row_course = (row.get("course_name") or "").strip().lower()
+                                row_year = (row.get("year_of_passing") or "").strip()
+
+                                if degree_val and row_degree and degree_val != row_degree:
+                                    continue
+                                if course_val and row_course and course_val != row_course:
+                                    continue
+                                if year_val and row_year and year_val != row_year:
+                                    continue
+
+                                official_record = row
+                                break
+                    except Exception as record_err:
+                        print(f"[STUDENT UPLOAD] Record lookup failed: {record_err}")
+
+                    computed_hash = None
+                    if official_record and official_record.get("hash_salt"):
+                        computed_hash = create_certificate_hash(
+                            extracted_data,
+                            hash_salt=official_record.get("hash_salt"),
+                        )
+                        blockchain_hash = computed_hash
+                        is_on_blockchain = verify_hash_on_blockchain(computed_hash)
+                    else:
+                        print("[STUDENT UPLOAD] No matching record with hash_salt; skipping on-chain check.")
+
+                    if computed_hash:
+                        print(f"[STUDENT UPLOAD] Calculated Hash (H_OCR): {computed_hash}")
                     print(
                         f"[STUDENT UPLOAD] Blockchain Status: "
                         f"{'VERIFIED' if is_on_blockchain else 'NOT FOUND'}"
@@ -421,47 +483,39 @@ def get_student_certificates(student_id):
     is not available so the public portal always has data to show.
     """
 
-    # Hardcoded demo certificates for UI/QR flows
-    demo_certificates = [
-        {
-            "id": 1,
-            "student_id": student_id,
-            "file_name": "SSC_Memo_demo.pdf",
-            "file_url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-            "uploaded_at": "2024-01-10T09:30:00Z",
-            "verification_status": "verified",
-        },
-        {
-            "id": 2,
-            "student_id": student_id,
-            "file_name": "Inter_Short_Memo_demo.pdf",
-            "file_url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-            "uploaded_at": "2024-02-20T11:15:00Z",
-            "verification_status": "verified",
-        },
-    ]
-
-    # If Supabase isn't configured, just return demo data
+    # If Supabase isn't configured, return empty list
     if not supabase:
-        return jsonify({"success": True, "certificates": demo_certificates}), 200
+        return jsonify({"success": True, "certificates": []}), 200
+
+    token = request.args.get("token")
+    if not token:
+        return jsonify({"error": "Access token is required"}), 403
 
     try:
+        profile_check = (
+            supabase
+            .table("public_profiles")
+            .select("share_token")
+            .eq("student_id", student_id)
+            .maybe_single()
+            .execute()
+        )
+        share_token = profile_check.data.get("share_token") if profile_check.data else None
+        if not share_token or share_token != token:
+            return jsonify({"error": "Invalid access token"}), 403
+
         result = supabase.table("certificates").select("*").eq("student_id", student_id).execute()
         data = result.data or []
-
-        # If the table exists but no rows yet, still fall back to demos
-        if not data:
-            data = demo_certificates
 
         return jsonify({"success": True, "certificates": data}), 200
 
     except Exception as e:
-        # If the certificates table doesn't exist yet, serve demo data instead of 500
+        # If the certificates table doesn't exist yet, return empty list
         error_str = str(e)
         print(f"Fetch certificates error: {error_str}")
         if "public.certificates" in error_str or "PGRST205" in error_str:
-            print("Certificates table missing; returning demo certificates.")
-            return jsonify({"success": True, "certificates": demo_certificates}), 200
+            print("Certificates table missing; returning empty list.")
+            return jsonify({"success": True, "certificates": []}), 200
 
         return jsonify({"error": f"Failed to fetch certificates: {error_str}"}), 500
 
@@ -476,6 +530,10 @@ def get_public_profile(student_id):
     if not supabase:
         return jsonify({"error": "Database not configured"}), 503
 
+    token = request.args.get("token")
+    if not token:
+        return jsonify({"error": "Access token is required"}), 403
+
     try:
         # Try to fetch from public_profiles first
         profile_result = (
@@ -488,6 +546,9 @@ def get_public_profile(student_id):
         )
 
         profile_data = profile_result.data if profile_result and profile_result.data else None
+
+        if not profile_data or profile_data.get("share_token") != token:
+            return jsonify({"error": "Invalid access token"}), 403
 
         # If no explicit public profile, fall back to basic student record
         if not profile_data:
