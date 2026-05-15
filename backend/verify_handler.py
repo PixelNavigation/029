@@ -8,7 +8,11 @@ from flask import jsonify
 from werkzeug.utils import secure_filename
 
 # Essential local imports
-from ocr_pipeline import process_certificate_file, normalize_extracted_data
+from ocr_pipeline import (
+    process_certificate_file,
+    normalize_extracted_data,
+    create_certificate_hash,
+)
 from supabase_client import get_supabase
 
 # --- CRITICAL BLOCKCHAIN IMPORT ---
@@ -70,6 +74,9 @@ def verify_certificate_upload(file):
             "verification_status": "unverified",
             "is_on_blockchain": False,  # NEW
             "blockchain_hash": None,    # NEW
+            "computed_hash": None,
+            "hash_match": None,
+            "mismatch_reasons": [],
             "template_match": False,
             "alert_sent": False,
             "matched_file": None,
@@ -81,6 +88,8 @@ def verify_certificate_upload(file):
 
         best_match = None
         best_match_score = 0
+        best_match_grade_mismatch = False
+        best_match_mismatch_reasons = []
         subject_match_info = {} 
         matched_file_name = None
 
@@ -109,15 +118,20 @@ def verify_certificate_upload(file):
                 print(f"[VERIFICATION] Found {len(rows)} Supabase record(s) to search")
 
                 for row_data in rows:
-                    match_score, current_subject_match_info = calculate_match_percentage_db(
-                        extracted_data, row_data
-                    )
+                    (
+                        match_score,
+                        current_subject_match_info,
+                        grade_mismatch,
+                        mismatch_reasons,
+                    ) = calculate_match_percentage_db(extracted_data, row_data)
                     print(f"[VERIFICATION] Match score: {match_score}%")
 
                     if match_score > best_match_score:
                         best_match_score = match_score
                         best_match = row_data
                         subject_match_info = current_subject_match_info
+                        best_match_grade_mismatch = grade_mismatch
+                        best_match_mismatch_reasons = mismatch_reasons
                         best_match["subject_match_info"] = subject_match_info
                         matched_file_name = "supabase"
             
@@ -136,6 +150,8 @@ def verify_certificate_upload(file):
                 verification_result["match_percentage"] = best_match_score
                 verification_result["matched_file"] = matched_file_name
                 verification_result["subject_match_info"] = subject_match_info
+                verification_result["grade_mismatch"] = best_match_grade_mismatch
+                verification_result["mismatch_reasons"] = best_match_mismatch_reasons
             
             
         except Exception as search_error:
@@ -145,21 +161,45 @@ def verify_certificate_upload(file):
             
         # --- PHASE 2: BLOCKCHAIN AUTHENTICITY CHECK ---
 
-        certificate_hash = None
+        expected_hash = None
         if best_match and best_match.get("blockchain_hash"):
-            certificate_hash = best_match.get("blockchain_hash")
+            expected_hash = best_match.get("blockchain_hash")
 
-        if certificate_hash:
-            verification_result["blockchain_hash"] = certificate_hash
-            is_on_blockchain = verify_hash_on_blockchain(certificate_hash)
+        if expected_hash:
+            verification_result["blockchain_hash"] = expected_hash
+
+            hash_salt = best_match.get("hash_salt") if best_match else None
+            if hash_salt:
+                computed_hash = create_certificate_hash(extracted_data, hash_salt=hash_salt)
+                verification_result["computed_hash"] = computed_hash
+                verification_result["hash_match"] = computed_hash == expected_hash
+            else:
+                verification_result["hash_match"] = None
+
+            is_on_blockchain = verify_hash_on_blockchain(expected_hash)
             verification_result["is_on_blockchain"] = is_on_blockchain
 
-            print(f"[VERIFICATION] Calculated Hash (H_OCR): {certificate_hash}")
+            print(f"[VERIFICATION] Expected Hash (DB): {expected_hash}")
+            if verification_result["computed_hash"]:
+                print(f"[VERIFICATION] Calculated Hash (H_OCR): {verification_result['computed_hash']}")
             print(
                 f"[VERIFICATION] Blockchain Status: {'VERIFIED' if is_on_blockchain else 'NOT FOUND'}"
             )
 
-            if is_on_blockchain:
+            if verification_result["hash_match"] is False:
+                verification_result["verification_status"] = "failed"
+                verification_result["discrepancy_details"] = (
+                    "Hash mismatch between extracted data and the stored blockchain hash. "
+                    "The certificate data appears altered."
+                )
+                verification_result["suggestion"] = (
+                    "Please re-scan the certificate or contact the issuing institution for verification."
+                )
+            elif verification_result["hash_match"] is None:
+                verification_result["discrepancy_details"] = (
+                    "Hash salt missing for this record. Hash integrity cannot be validated."
+                )
+            elif is_on_blockchain:
                 verification_result["verification_status"] = "blockchain_verified"
                 verification_result["message"] = "Certificate is fully verified against the immutable blockchain record."
 
@@ -174,8 +214,23 @@ def verify_certificate_upload(file):
         HIGH_MATCH_THRESHOLD = 80.0
         MEDIUM_MATCH_THRESHOLD = 60.0
 
+        # If hash mismatch detected, do not override with match-score status
+        if verification_result["hash_match"] is False:
+            pass
+
+        # If any subject grade mismatch detected, mark as failed
+        elif verification_result.get("grade_mismatch"):
+            verification_result["verification_status"] = "failed"
+            verification_result["discrepancy_details"] = (
+                "; ".join(verification_result.get("mismatch_reasons", [])[:3])
+                or "One or more subject grades do not match the official record."
+            )
+            verification_result["suggestion"] = (
+                "Please re-scan the certificate or contact the issuing institution for verification."
+            )
+
         # If blockchain already proved authenticity, treat as verified
-        if verification_result["verification_status"] == "blockchain_verified":
+        elif verification_result["verification_status"] == "blockchain_verified":
             verification_result["verification_status"] = "verified"
             verification_result["message"] = (
                 "Certificate is fully verified against the immutable blockchain record. "
@@ -204,8 +259,11 @@ def verify_certificate_upload(file):
                 # Low confidence despite finding a row
                 verification_result["verification_status"] = "failed"
                 verification_result["discrepancy_details"] = (
-                    f"Low-confidence match in institutional records (Match score: {best_match_score:.2f}%). "
-                    "Certificate data does not reliably match the database row."
+                    "; ".join(verification_result.get("mismatch_reasons", [])[:3])
+                    or (
+                        f"Low-confidence match in institutional records (Match score: {best_match_score:.2f}%). "
+                        "Certificate data does not reliably match the database row."
+                    )
                 )
                 verification_result["suggestion"] = (
                     "Please re-scan or contact the issuing institution for manual verification."
@@ -255,6 +313,8 @@ def calculate_match_percentage_db(extracted_data, db_row):
     total_fields = 0
     matched_fields = 0
     match_details = []
+    grade_mismatch_detected = False
+    mismatch_reasons = []
 
     # Compare student_id (exact match - highest priority)
     total_fields += 2 
@@ -265,6 +325,10 @@ def calculate_match_percentage_db(extracted_data, db_row):
         match_details.append(f"✓ student_id: '{extracted_id}' == '{db_id}'")
     else:
         match_details.append(f"✗ student_id: '{extracted_id}' != '{db_id}'")
+        if extracted_id and db_id:
+            mismatch_reasons.append(
+                f"Student ID mismatch (extracted: {extracted_id}, record: {db_id})"
+            )
 
     # Compare student name (token-level strategy)
     total_fields += 1
@@ -295,13 +359,21 @@ def calculate_match_percentage_db(extracted_data, db_row):
             match_details.append(
                 f"✗ student_name: first_match={first_match}, last_sim={last_similarity:.2f}"
             )
+            if extracted_name_raw and excel_name_raw:
+                mismatch_reasons.append(
+                    f"Student name mismatch (extracted: {extracted_name_raw}, record: {excel_name_raw})"
+                )
     else:
         match_details.append("⊘ student_name: Empty field")
 
     # Compare university
     total_fields += 1
     extracted_uni = extracted_data.get("university_name", "").strip().lower()
-    excel_uni = db_row.get("university_name", "").strip().lower()
+    excel_uni = (
+        db_row.get("university_name")
+        or db_row.get("issuing_authority")
+        or ""
+    ).strip().lower()
     if extracted_uni and excel_uni:
         if (
             extracted_uni == excel_uni
@@ -315,6 +387,9 @@ def calculate_match_percentage_db(extracted_data, db_row):
         else:
             match_details.append(
                 f"✗ university_name: '{extracted_uni}' != '{excel_uni}'"
+            )
+            mismatch_reasons.append(
+                f"University mismatch (extracted: {extracted_uni}, record: {excel_uni})"
             )
     else:
         match_details.append(
@@ -339,6 +414,9 @@ def calculate_match_percentage_db(extracted_data, db_row):
             match_details.append(
                 f"✗ course_name: '{extracted_course}' != '{excel_course}'"
             )
+            mismatch_reasons.append(
+                f"Course mismatch (extracted: {extracted_course}, record: {excel_course})"
+            )
     else:
         match_details.append("⊘ course_name: Empty field")
 
@@ -360,6 +438,9 @@ def calculate_match_percentage_db(extracted_data, db_row):
             match_details.append(
                 f"✗ degree_type: '{extracted_degree}' != '{excel_degree}'"
             )
+            mismatch_reasons.append(
+                f"Degree type mismatch (extracted: {extracted_degree}, record: {excel_degree})"
+            )
     else:
         match_details.append("⊘ degree_type: Empty field")
 
@@ -380,6 +461,9 @@ def calculate_match_percentage_db(extracted_data, db_row):
                 match_details.append(
                     f"✗ cgpa: {extracted_cgpa} != {excel_cgpa}"
                 )
+                mismatch_reasons.append(
+                    f"CGPA mismatch (extracted: {extracted_cgpa}, record: {excel_cgpa})"
+                )
         except Exception:
             if extracted_cgpa == excel_cgpa:
                 matched_fields += 1
@@ -389,6 +473,9 @@ def calculate_match_percentage_db(extracted_data, db_row):
             else:
                 match_details.append(
                     f"✗ cgpa: '{extracted_cgpa}' != '{excel_cgpa}'"
+                )
+                mismatch_reasons.append(
+                    f"CGPA mismatch (extracted: {extracted_cgpa}, record: {excel_cgpa})"
                 )
     else:
         match_details.append("⊘ cgpa: Empty field")
@@ -406,6 +493,9 @@ def calculate_match_percentage_db(extracted_data, db_row):
         else:
             match_details.append(
                 f"✗ year_of_passing: '{extracted_year}' != '{excel_year}'"
+            )
+            mismatch_reasons.append(
+                f"Year of passing mismatch (extracted: {extracted_year}, record: {excel_year})"
             )
     else:
         match_details.append("⊘ year_of_passing: Empty field")
@@ -427,6 +517,9 @@ def calculate_match_percentage_db(extracted_data, db_row):
         else:
             match_details.append(
                 f"✗ issuing_authority: '{extracted_issuer}' != '{excel_issuer}'"
+            )
+            mismatch_reasons.append(
+                f"Issuing authority mismatch (extracted: {extracted_issuer}, record: {excel_issuer})"
             )
     else:
         match_details.append("⊘ issuing_authority: Empty field")
@@ -505,6 +598,12 @@ def calculate_match_percentage_db(extracted_data, db_row):
                     excel_match = excel_subject_map[ext_name_norm]
                     subject_matches += 1
                     used_excel_subjects.add(ext_name_norm)
+                    excel_grade = str(excel_match.get("grade", "")).strip()
+                    if ext_grade and excel_grade and ext_grade != excel_grade:
+                        grade_mismatch_detected = True
+                        mismatch_reasons.append(
+                            f"Subject grade mismatch: {ext_name} (extracted: {ext_grade}, record: {excel_grade})"
+                        )
                     subject_match_info["matched"].append({
                         "extracted": ext_name, "excel": excel_match["subject_name"],
                         "extracted_grade": ext_grade, "excel_grade": excel_match["grade"]
@@ -539,6 +638,12 @@ def calculate_match_percentage_db(extracted_data, db_row):
                         excel_name_norm, excel_subj = best_match_sub
                         subject_matches += 0.7
                         used_excel_subjects.add(excel_name_norm)
+                        excel_grade = str(excel_subj.get("grade", "")).strip()
+                        if ext_grade and excel_grade and ext_grade != excel_grade:
+                            grade_mismatch_detected = True
+                            mismatch_reasons.append(
+                                f"Subject grade mismatch: {ext_name} (extracted: {ext_grade}, record: {excel_grade})"
+                            )
                         subject_match_info["corrected"].append({
                             "extracted": ext_name, "excel": excel_subj["subject_name"],
                             "extracted_grade": ext_grade, "excel_grade": excel_subj["grade"],
@@ -582,7 +687,7 @@ def calculate_match_percentage_db(extracted_data, db_row):
         f"fields = {percentage}%"
     )
     
-    return percentage, subject_match_info
+    return percentage, subject_match_info, grade_mismatch_detected, mismatch_reasons
 
 
 def similarity_ratio(str1, str2):

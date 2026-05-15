@@ -224,8 +224,8 @@ export const LandingPage = () => {
                         onClick={isCameraOpen ? stopCamera : startCamera}
                         disabled={isProcessing}
                         className={`px-4 py-2 rounded-lg transition-colors text-sm font-medium ${isCameraOpen
-                            ? 'bg-red-600 text-white hover:bg-red-700'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                          ? 'bg-red-600 text-white hover:bg-red-700'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
                           } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         {isProcessing ? 'Processing...' : isCameraOpen ? 'Stop Camera' : 'Start Scanning'}
@@ -294,12 +294,12 @@ export const LandingPage = () => {
 
             {/* Verification Status Banner */}
             <div className={`p-6 rounded-lg mb-6 ${verificationResult.verification_status === 'verified'
-                ? 'bg-green-50 border border-green-200'
-                : verificationResult.verification_status === 'semi-verified'
-                  ? 'bg-yellow-50 border border-yellow-200'
-                  : verificationResult.verification_status === 'not_found'
-                    ? 'bg-orange-50 border border-orange-200'
-                    : 'bg-red-50 border border-red-200'
+              ? 'bg-green-50 border border-green-200'
+              : verificationResult.verification_status === 'semi-verified'
+                ? 'bg-yellow-50 border border-yellow-200'
+                : verificationResult.verification_status === 'not_found'
+                  ? 'bg-orange-50 border border-orange-200'
+                  : 'bg-red-50 border border-red-200'
               }`}>
               <div className="flex items-center space-x-3">
                 {verificationResult.verification_status === 'verified' ? (
@@ -342,7 +342,7 @@ export const LandingPage = () => {
                       <h3 className="text-xl font-bold text-red-800">Verification Failed</h3>
                       <p className="text-red-700">
                         Match Percentage: {(verificationResult.match_percentage?.toFixed?.(2) ?? verificationResult.match_percentage) ?? 0}% –
-                        {' '}Certificate data does not match database records
+                        {' '}{verificationResult.discrepancy_details || 'Certificate data does not match database records'}
                       </p>
                     </div>
                   </>
@@ -392,7 +392,11 @@ export const LandingPage = () => {
                   <div className="space-y-1">
                     <p className="text-sm text-gray-700 flex items-center gap-2">
                       Status:
-                      {verificationResult.is_on_blockchain ? (
+                      {verificationResult.hash_match === false ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                          ✗ Hash mismatch
+                        </span>
+                      ) : verificationResult.is_on_blockchain ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
                           ✓ On-chain (hash found)
                         </span>
@@ -403,9 +407,11 @@ export const LandingPage = () => {
                       )}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {verificationResult.is_on_blockchain
-                        ? 'Certificate hash matches a record on the blockchain. Authenticity is cryptographically proven.'
-                        : 'No matching hash found on the blockchain. Result is based on institutional database matching only.'}
+                      {verificationResult.hash_match === false
+                        ? 'Stored hash is on-chain, but the uploaded data hash does not match. The certificate appears altered.'
+                        : verificationResult.is_on_blockchain
+                          ? 'Certificate hash matches a record on the blockchain. Authenticity is cryptographically proven.'
+                          : 'No matching hash found on the blockchain. Result is based on institutional database matching only.'}
                     </p>
                   </div>
 
@@ -473,21 +479,31 @@ export const LandingPage = () => {
                           // Check if this subject is missing in Excel
                           const isMissing = verificationResult.subject_match_info?.missing_in_excel?.includes(subjectName);
 
-                          const rowClass = matchedSubject
-                            ? 'bg-green-50 hover:bg-green-100'
-                            : correctedSubject
-                              ? 'bg-orange-50 hover:bg-orange-100'
-                              : isMissing
-                                ? 'bg-red-50 hover:bg-red-100'
-                                : 'hover:bg-gray-50';
+                          const extractedGrade = (subject.grade || subject.marks || '').toString().trim();
+                          const dbGrade = (correctedSubject?.excel_grade || matchedSubject?.excel_grade || '').toString().trim();
+                          const isGradeMismatch = Boolean(
+                            (matchedSubject || correctedSubject) && extractedGrade && dbGrade && extractedGrade !== dbGrade
+                          );
 
-                          const textColor = matchedSubject
-                            ? 'text-green-900'
-                            : correctedSubject
-                              ? 'text-orange-900'
-                              : isMissing
-                                ? 'text-red-900'
-                                : 'text-gray-900';
+                          const rowClass = isGradeMismatch
+                            ? 'bg-red-100 hover:bg-red-200'
+                            : matchedSubject
+                              ? 'bg-green-50 hover:bg-green-100'
+                              : correctedSubject
+                                ? 'bg-orange-50 hover:bg-orange-100'
+                                : isMissing
+                                  ? 'bg-red-50 hover:bg-red-100'
+                                  : 'hover:bg-gray-50';
+
+                          const textColor = isGradeMismatch
+                            ? 'text-red-900'
+                            : matchedSubject
+                              ? 'text-green-900'
+                              : correctedSubject
+                                ? 'text-orange-900'
+                                : isMissing
+                                  ? 'text-red-900'
+                                  : 'text-gray-900';
 
                           return (
                             <tr key={idx} className={rowClass}>
@@ -501,26 +517,31 @@ export const LandingPage = () => {
                               </td>
                               <td className={`px-4 py-3 text-sm ${textColor} font-medium`}>
                                 {(correctedSubject || matchedSubject)
-                                  ? (correctedSubject?.excel_grade || matchedSubject?.excel_grade)
+                                  ? (dbGrade || '-')
                                   : (subject.grade || subject.marks || '-')}
                                 {(correctedSubject || matchedSubject) && (
                                   <span className="text-xs text-gray-500 ml-2">
-                                    (Database: {subject.grade || subject.marks || '-'})
+                                    (Extracted: {extractedGrade || '-'})
                                   </span>
                                 )}
                               </td>
                               <td className="px-4 py-3 text-sm">
-                                {matchedSubject && (
+                                {isGradeMismatch && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    ✗ Grade mismatch
+                                  </span>
+                                )}
+                                {!isGradeMismatch && matchedSubject && (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                     ✓ Matched
                                   </span>
                                 )}
-                                {correctedSubject && (
+                                {!isGradeMismatch && correctedSubject && (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
                                     ⚠ Similar
                                   </span>
                                 )}
-                                {isMissing && (
+                                {!isGradeMismatch && isMissing && (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                     ✗ Not in DB
                                   </span>

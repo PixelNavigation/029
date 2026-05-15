@@ -310,6 +310,7 @@ def confirm_and_save_data_handler(supabase):
                     "cgpa": item.get("cgpa", ""),
                     "year_of_passing": item.get("year_of_passing", ""),
                     "blockchain_hash": item.get("blockchain_hash", ""),
+                    "hash_salt": item.get("hash_salt", ""),
                     "subject_grades": item.get("subject_grades", []),
                     "semester": item.get("semester", ""),
                     "issuing_authority": item.get("issuing_authority", ""),
