@@ -61,6 +61,8 @@ def extract_certificate_data_with_gemini(file_path):
         11. Issuing Authority (the organization name like "Osmania University")
         12. Subject-wise Grades (extract all subjects with their individual grade/marks)
         13. For the subject names dont include subject codes or numbers - just the name (e.g., "Data Structures", "Operating Systems")
+        14. CRITICAL: Keep each subject paired with the grade/marks shown on the same row/line. Do not swap grades between subjects.
+        15. If a grade is unclear for a subject, leave that grade empty instead of guessing.
         
         Return the data in JSON format with these keys:
         {
@@ -87,6 +89,7 @@ def extract_certificate_data_with_gemini(file_path):
         - semester: ONLY the number (e.g., "5", "3", "1")
         - DO NOT mix course, specialization, and semester - keep them completely separate
         - issuing_authority: Organization name (e.g., "Osmania University")
+        - subject_grades: preserve subject-grade pairing exactly as shown in the document table
         - If any field is not found, leave it as an empty string or empty array
         """
         

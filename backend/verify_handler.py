@@ -169,6 +169,7 @@ def verify_certificate_upload(file):
             verification_result["blockchain_hash"] = expected_hash
 
             hash_salt = best_match.get("hash_salt") if best_match else None
+            computed_hash = None
             if hash_salt:
                 computed_hash = create_certificate_hash(extracted_data, hash_salt=hash_salt)
                 verification_result["computed_hash"] = computed_hash
@@ -176,7 +177,9 @@ def verify_certificate_upload(file):
             else:
                 verification_result["hash_match"] = None
 
-            is_on_blockchain = verify_hash_on_blockchain(expected_hash)
+            # Verify the uploaded file's hash against on-chain records
+            hash_for_chain = computed_hash or expected_hash
+            is_on_blockchain = verify_hash_on_blockchain(hash_for_chain)
             verification_result["is_on_blockchain"] = is_on_blockchain
 
             print(f"[VERIFICATION] Expected Hash (DB): {expected_hash}")
