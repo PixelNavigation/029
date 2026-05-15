@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QrCode, Camera, Upload, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { QrScanner } from '@yudiel/react-qr-scanner';
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 export const QRVerification = () => {
   const [verificationResult, setVerificationResult] = useState(null);
@@ -179,7 +179,7 @@ export const QRVerification = () => {
         </div>
       ) : scanActive ? (
         <div className="rounded-xl overflow-hidden border border-gray-200">
-          <QrScanner
+          <Scanner
             onDecode={handleQrPayload}
             onError={() => setError('Unable to read QR code. Please try again.')}
             constraints={{ facingMode: 'environment' }}
