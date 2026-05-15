@@ -186,7 +186,7 @@ export const UniversityDashboard = () => {
       const filesCopied = saveResponse.verified_files?.length || 0;
       if (saveResponse.total_records) {
         alert(
-          `Successfully saved ${saveResponse.total_records} record(s) to Excel!\nOriginal files saved: ${filesCopied}\nFile: ${saveResponse.excel_file}`,
+          `Successfully saved ${saveResponse.total_records} record(s) to Blockchain!`,
         );
       }
       // Optional: surface blockchain summary from backend

@@ -331,7 +331,7 @@ export const LandingPage = () => {
                     <div>
                       <h3 className="text-xl font-bold text-orange-800">Record Not Found</h3>
                       <p className="text-orange-700">
-                        No matching records found in our database
+                        This certificate is not present in the system or is likely fake data.
                       </p>
                     </div>
                   </>
@@ -350,211 +350,216 @@ export const LandingPage = () => {
               </div>
             </div>
 
-            {/* Extracted Data */}
-            <div className="mb-6">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Extracted Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-6 rounded-lg">
-                <div>
-                  <p className="text-sm text-gray-600">Student Name</p>
-                  <p className="font-medium text-gray-900">{verificationResult.extracted_data.student_name || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Student ID</p>
-                  <p className="font-medium text-gray-900">{verificationResult.extracted_data.student_id || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">University</p>
-                  <p className="font-medium text-gray-900">{verificationResult.extracted_data.university_name || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Course</p>
-                  <p className="font-medium text-gray-900">{verificationResult.extracted_data.course_name || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Degree Type</p>
-                  <p className="font-medium text-gray-900">{verificationResult.extracted_data.degree_type || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">CGPA</p>
-                  <p className="font-medium text-gray-900">{verificationResult.extracted_data.cgpa || 'N/A'}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Blockchain Verification Details */}
-            {verificationResult.blockchain_hash && (
-              <div className="mb-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-blue-600" />
-                  Blockchain Verification
-                </h3>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="space-y-1">
-                    <p className="text-sm text-gray-700 flex items-center gap-2">
-                      Status:
-                      {verificationResult.hash_match === false ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
-                          ✗ Hash mismatch
-                        </span>
-                      ) : verificationResult.is_on_blockchain ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                          ✓ On-chain (hash found)
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
-                          ✗ Not on-chain
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {verificationResult.hash_match === false
-                        ? 'Stored hash is on-chain, but the uploaded data hash does not match. The certificate appears altered.'
-                        : verificationResult.is_on_blockchain
-                          ? 'Certificate hash matches a record on the blockchain. Authenticity is cryptographically proven.'
-                          : 'No matching hash found on the blockchain. Result is based on institutional database matching only.'}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs sm:text-sm font-mono max-w-full sm:max-w-xl">
-                    <Hash className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                    <span className="truncate flex-1" title={verificationResult.blockchain_hash}>
-                      {verificationResult.blockchain_hash}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(verificationResult.blockchain_hash)}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-gray-100"
-                    >
-                      <Copy className="h-3 w-3" />
-                      Copy
-                    </button>
+            {verificationResult.verification_status !== 'not_found' && (
+              <>
+                {/* Extracted Data */}
+                <div className="mb-6">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-4">Extracted Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-6 rounded-lg">
+                    <div>
+                      <p className="text-sm text-gray-600">Student Name</p>
+                      <p className="font-medium text-gray-900">{verificationResult.extracted_data.student_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Student ID</p>
+                      <p className="font-medium text-gray-900">{verificationResult.extracted_data.student_id || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">University</p>
+                      <p className="font-medium text-gray-900">{verificationResult.extracted_data.university_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Course</p>
+                      <p className="font-medium text-gray-900">{verificationResult.extracted_data.course_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Degree Type</p>
+                      <p className="font-medium text-gray-900">{verificationResult.extracted_data.degree_type || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">CGPA</p>
+                      <p className="font-medium text-gray-900">{verificationResult.extracted_data.cgpa || 'N/A'}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
+
+                {/* Blockchain Verification Details */}
+                {verificationResult.blockchain_hash && (
+                  <div className="mb-6">
+                    <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-blue-600" />
+                      Blockchain Verification
+                    </h3>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="text-sm text-gray-700 flex items-center gap-2">
+                          Status:
+                          {verificationResult.hash_match === false ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                              ✗ Hash mismatch
+                            </span>
+                          ) : verificationResult.is_on_blockchain ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                              ✓ On-chain (hash found)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                              ✗ Not on-chain
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {verificationResult.hash_match === false
+                            ? 'Stored hash is on-chain, but the uploaded data hash does not match. The certificate appears altered.'
+                            : verificationResult.is_on_blockchain
+                              ? 'Certificate hash matches a record on the blockchain. Authenticity is cryptographically proven.'
+                              : 'No matching hash found on the blockchain. Result is based on institutional database matching only.'}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs sm:text-sm font-mono max-w-full sm:max-w-xl">
+                        <Hash className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                        <span className="truncate flex-1" title={verificationResult.blockchain_hash}>
+                          {verificationResult.blockchain_hash}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(verificationResult.blockchain_hash)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-gray-100"
+                        >
+                          <Copy className="h-3 w-3" />
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Subject Grades */}
+                {verificationResult.extracted_data.subject_grades &&
+                  verificationResult.extracted_data.subject_grades.length > 0 && (
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                        Subject-wise Grades
+                        {verificationResult.subject_match_info && (
+                          <span className="ml-3 text-sm text-gray-600">
+                            {verificationResult.subject_match_info.matched?.length > 0 && (
+                              <span className="text-green-600">✓ {verificationResult.subject_match_info.matched.length} matched</span>
+                            )}
+                            {verificationResult.subject_match_info.corrected?.length > 0 && (
+                              <span className="text-orange-600 ml-2">⚠ {verificationResult.subject_match_info.corrected.length} corrected</span>
+                            )}
+                            {verificationResult.subject_match_info.missing_in_excel?.length > 0 && (
+                              <span className="text-red-600 ml-2">✗ {verificationResult.subject_match_info.missing_in_excel.length} not in database</span>
+                            )}
+                          </span>
+                        )}
+                      </h3>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Subject</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Grade/Marks</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {verificationResult.extracted_data.subject_grades.map((subject, idx) => {
+                              const subjectName = subject.subject_name || '';
+
+                              // Check if this subject was matched exactly
+                              const matchedSubject = verificationResult.subject_match_info?.matched?.find(
+                                m => m.extracted === subjectName
+                              );
+
+                              // Check if this subject was corrected
+                              const correctedSubject = verificationResult.subject_match_info?.corrected?.find(
+                                c => c.extracted === subjectName
+                              );
+
+                              // Check if this subject is missing in Excel
+                              const isMissing = verificationResult.subject_match_info?.missing_in_excel?.includes(subjectName);
+
+                              const extractedGrade = (subject.grade || subject.marks || '').toString().trim();
+                              const dbGrade = (correctedSubject?.excel_grade || matchedSubject?.excel_grade || '').toString().trim();
+                              const isGradeMismatch = Boolean(
+                                (matchedSubject || correctedSubject) && extractedGrade && dbGrade && extractedGrade !== dbGrade
+                              );
+
+                              const rowClass = isGradeMismatch
+                                ? 'bg-red-100 hover:bg-red-200'
+                                : matchedSubject
+                                  ? 'bg-green-50 hover:bg-green-100'
+                                  : correctedSubject
+                                    ? 'bg-orange-50 hover:bg-orange-100'
+                                    : isMissing
+                                      ? 'bg-red-50 hover:bg-red-100'
+                                      : 'hover:bg-gray-50';
+
+                              const textColor = isGradeMismatch
+                                ? 'text-red-900'
+                                : matchedSubject
+                                  ? 'text-green-900'
+                                  : correctedSubject
+                                    ? 'text-orange-900'
+                                    : isMissing
+                                      ? 'text-red-900'
+                                      : 'text-gray-900';
+
+                              return (
+                                <tr key={idx} className={rowClass}>
+                                  <td className={`px-4 py-3 text-sm ${textColor}`}>
+                                    {correctedSubject ? correctedSubject.excel : (matchedSubject ? matchedSubject.excel : subjectName) || '-'}
+                                    {correctedSubject && (
+                                      <div className="text-xs text-gray-600 mt-1">
+                                        Database: <span className="font-medium">{correctedSubject.extracted}</span>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className={`px-4 py-3 text-sm ${textColor} font-medium`}>
+                                    {(correctedSubject || matchedSubject)
+                                      ? (dbGrade || '-')
+                                      : (subject.grade || subject.marks || '-')}
+                                    {(correctedSubject || matchedSubject) && (
+                                      <span className="text-xs text-gray-500 ml-2">
+                                        (Extracted: {extractedGrade || '-'})
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm">
+                                    {isGradeMismatch && (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        ✗ Grade mismatch
+                                      </span>
+                                    )}
+                                    {!isGradeMismatch && matchedSubject && (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        ✓ Matched
+                                      </span>
+                                    )}
+                                    {!isGradeMismatch && correctedSubject && (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                        ⚠ Similar
+                                      </span>
+                                    )}
+                                    {!isGradeMismatch && isMissing && (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        ✗ Not in DB
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+              </>
             )}
 
-            {/* Subject Grades */}
-            {verificationResult.extracted_data.subject_grades &&
-              verificationResult.extracted_data.subject_grades.length > 0 && (
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                    Subject-wise Grades
-                    {verificationResult.subject_match_info && (
-                      <span className="ml-3 text-sm text-gray-600">
-                        {verificationResult.subject_match_info.matched?.length > 0 && (
-                          <span className="text-green-600">✓ {verificationResult.subject_match_info.matched.length} matched</span>
-                        )}
-                        {verificationResult.subject_match_info.corrected?.length > 0 && (
-                          <span className="text-orange-600 ml-2">⚠ {verificationResult.subject_match_info.corrected.length} corrected</span>
-                        )}
-                        {verificationResult.subject_match_info.missing_in_excel?.length > 0 && (
-                          <span className="text-red-600 ml-2">✗ {verificationResult.subject_match_info.missing_in_excel.length} not in database</span>
-                        )}
-                      </span>
-                    )}
-                  </h3>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full bg-white border border-gray-200 rounded-lg">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Subject</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Grade/Marks</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {verificationResult.extracted_data.subject_grades.map((subject, idx) => {
-                          const subjectName = subject.subject_name || '';
-
-                          // Check if this subject was matched exactly
-                          const matchedSubject = verificationResult.subject_match_info?.matched?.find(
-                            m => m.extracted === subjectName
-                          );
-
-                          // Check if this subject was corrected
-                          const correctedSubject = verificationResult.subject_match_info?.corrected?.find(
-                            c => c.extracted === subjectName
-                          );
-
-                          // Check if this subject is missing in Excel
-                          const isMissing = verificationResult.subject_match_info?.missing_in_excel?.includes(subjectName);
-
-                          const extractedGrade = (subject.grade || subject.marks || '').toString().trim();
-                          const dbGrade = (correctedSubject?.excel_grade || matchedSubject?.excel_grade || '').toString().trim();
-                          const isGradeMismatch = Boolean(
-                            (matchedSubject || correctedSubject) && extractedGrade && dbGrade && extractedGrade !== dbGrade
-                          );
-
-                          const rowClass = isGradeMismatch
-                            ? 'bg-red-100 hover:bg-red-200'
-                            : matchedSubject
-                              ? 'bg-green-50 hover:bg-green-100'
-                              : correctedSubject
-                                ? 'bg-orange-50 hover:bg-orange-100'
-                                : isMissing
-                                  ? 'bg-red-50 hover:bg-red-100'
-                                  : 'hover:bg-gray-50';
-
-                          const textColor = isGradeMismatch
-                            ? 'text-red-900'
-                            : matchedSubject
-                              ? 'text-green-900'
-                              : correctedSubject
-                                ? 'text-orange-900'
-                                : isMissing
-                                  ? 'text-red-900'
-                                  : 'text-gray-900';
-
-                          return (
-                            <tr key={idx} className={rowClass}>
-                              <td className={`px-4 py-3 text-sm ${textColor}`}>
-                                {correctedSubject ? correctedSubject.excel : (matchedSubject ? matchedSubject.excel : subjectName) || '-'}
-                                {correctedSubject && (
-                                  <div className="text-xs text-gray-600 mt-1">
-                                    Database: <span className="font-medium">{correctedSubject.extracted}</span>
-                                  </div>
-                                )}
-                              </td>
-                              <td className={`px-4 py-3 text-sm ${textColor} font-medium`}>
-                                {(correctedSubject || matchedSubject)
-                                  ? (dbGrade || '-')
-                                  : (subject.grade || subject.marks || '-')}
-                                {(correctedSubject || matchedSubject) && (
-                                  <span className="text-xs text-gray-500 ml-2">
-                                    (Extracted: {extractedGrade || '-'})
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-sm">
-                                {isGradeMismatch && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                    ✗ Grade mismatch
-                                  </span>
-                                )}
-                                {!isGradeMismatch && matchedSubject && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                    ✓ Matched
-                                  </span>
-                                )}
-                                {!isGradeMismatch && correctedSubject && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                    ⚠ Similar
-                                  </span>
-                                )}
-                                {!isGradeMismatch && isMissing && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                    ✗ Not in DB
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
           </div>
         )}
 

@@ -92,6 +92,7 @@ def verify_certificate_upload(file):
         best_match_mismatch_reasons = []
         subject_match_info = {} 
         matched_file_name = None
+        identity_match = True
 
         student_id = extracted_data.get("student_id", "").strip()
         student_name = extracted_data.get("student_name", "").strip()
@@ -118,6 +119,42 @@ def verify_certificate_upload(file):
                 print(f"[VERIFICATION] Found {len(rows)} Supabase record(s) to search")
 
                 for row_data in rows:
+                    extracted_uni = extracted_data.get("university_name", "")
+                    extracted_course = extracted_data.get("course_name", "")
+                    extracted_degree = extracted_data.get("degree_type", "")
+                    extracted_cgpa = extracted_data.get("cgpa", "")
+
+                    db_uni = row_data.get("university_name") or row_data.get("issuing_authority")
+                    db_course = row_data.get("course_name", "")
+                    db_degree = row_data.get("degree_type", "")
+                    db_cgpa = row_data.get("cgpa", "")
+
+                    name_ok = _name_match_strict(student_name, row_data.get("student_name", ""))
+                    id_ok = _field_match_strict(student_id, row_data.get("student_id", ""))
+
+                    strict_ok = True
+                    if student_name and not name_ok:
+                        strict_ok = False
+                    if student_id and not id_ok:
+                        strict_ok = False
+                    if extracted_uni and db_uni and not _field_match_strict(extracted_uni, db_uni):
+                        strict_ok = False
+                    if extracted_course and db_course and not _field_match_strict(extracted_course, db_course):
+                        strict_ok = False
+                    if extracted_degree and db_degree and not _field_match_strict(extracted_degree, db_degree):
+                        strict_ok = False
+
+                    if extracted_cgpa and db_cgpa:
+                        try:
+                            if abs(float(extracted_cgpa) - float(db_cgpa)) > 0.1:
+                                strict_ok = False
+                        except Exception:
+                            if not _field_match_strict(extracted_cgpa, db_cgpa):
+                                strict_ok = False
+
+                    if not strict_ok:
+                        continue
+
                     (
                         match_score,
                         current_subject_match_info,
@@ -152,6 +189,39 @@ def verify_certificate_upload(file):
                 verification_result["subject_match_info"] = subject_match_info
                 verification_result["grade_mismatch"] = best_match_grade_mismatch
                 verification_result["mismatch_reasons"] = best_match_mismatch_reasons
+
+                def _norm(value):
+                    return re.sub(r"\s+", " ", str(value or "")).strip().lower()
+
+                extracted_id = _norm(extracted_data.get("student_id"))
+                db_id = _norm(best_match.get("student_id"))
+                extracted_degree = _norm(extracted_data.get("degree_type"))
+                db_degree = _norm(best_match.get("degree_type"))
+                extracted_course = _norm(extracted_data.get("course_name"))
+                db_course = _norm(best_match.get("course_name"))
+                extracted_year = _norm(extracted_data.get("year_of_passing"))
+                db_year = _norm(best_match.get("year_of_passing"))
+
+                extracted_name = _norm(extracted_data.get("student_name"))
+                db_name = _norm(best_match.get("student_name"))
+
+                id_matches = extracted_id and db_id and extracted_id == db_id
+                name_matches = extracted_name and db_name and extracted_name == db_name
+
+                if id_matches or name_matches:
+                    if extracted_degree and db_degree and extracted_degree != db_degree:
+                        identity_match = False
+                    elif extracted_course and db_course and extracted_course != db_course:
+                        identity_match = False
+                    elif extracted_year and db_year and extracted_year != db_year:
+                        identity_match = False
+
+                if not identity_match:
+                    verification_result["verification_status"] = "not_found"
+                    verification_result["error_message"] = (
+                        "Certificate not present in the database for this student. "
+                        "The certificate data is missing or likely fake."
+                    )
             
             
         except Exception as search_error:
@@ -165,7 +235,7 @@ def verify_certificate_upload(file):
         if best_match and best_match.get("blockchain_hash"):
             expected_hash = best_match.get("blockchain_hash")
 
-        if expected_hash:
+        if expected_hash and identity_match:
             verification_result["blockchain_hash"] = expected_hash
 
             hash_salt = best_match.get("hash_salt") if best_match else None
@@ -309,6 +379,28 @@ def _name_tokens(value):
     cleaned = re.sub(r"[^a-zA-Z0-9\s-]", " ", value.lower())
     cleaned = cleaned.replace("-", " ")
     return [token for token in cleaned.split() if token]
+
+
+def _name_match_strict(extracted_name, db_name):
+    """Match names with strict first token and >= 80% overall similarity."""
+    if not extracted_name or not db_name:
+        return False
+    extracted_tokens = _name_tokens(extracted_name)
+    db_tokens = _name_tokens(db_name)
+    if not extracted_tokens or not db_tokens:
+        return False
+    if extracted_tokens[0] != db_tokens[0]:
+        return False
+    extracted_clean = " ".join(extracted_tokens)
+    db_clean = " ".join(db_tokens)
+    return similarity_ratio(extracted_clean, db_clean) >= 0.8
+
+
+def _field_match_strict(extracted_value, db_value):
+    """Case-insensitive match for non-empty fields."""
+    if not extracted_value or not db_value:
+        return False
+    return str(extracted_value).strip().lower() == str(db_value).strip().lower()
 
 
 def calculate_match_percentage_db(extracted_data, db_row):
