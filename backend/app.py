@@ -131,10 +131,13 @@ def signup():
 
         result_public = supabase.table('public_profiles').insert(public_profile).execute()
 
-        return jsonify({
-            "success": True,
-            "message": "Account created successfully! Please sign in with your credentials."
-        }, 201)
+        return (
+            jsonify({
+                "success": True,
+                "message": "Account created successfully! Please sign in with your credentials.",
+            }),
+            201,
+        )
             
     except Exception as e:
         print(f"Signup error: {str(e)}")
