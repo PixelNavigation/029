@@ -51,6 +51,13 @@ export const StudentDashboard = () => {
     ...(publicProfile || {})
   };
 
+  const shareToken =
+    user?.share_token ||
+    user?.shareToken ||
+    publicProfile?.share_token ||
+    publicProfile?.shareToken ||
+    '';
+
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [submittedDocuments, setSubmittedDocuments] = useState([]);
   const [storedCertificates, setStoredCertificates] = useState([]);
@@ -75,8 +82,11 @@ export const StudentDashboard = () => {
   useEffect(() => {
     const generate = async () => {
       try {
-        const shareToken = displayUser.share_token || displayUser.shareToken || '';
-        const profileUrl = `${window.location.origin}/document-access/${displayUser.studentId}/${shareToken}`;
+        if (!shareToken || !displayUser.studentId) {
+          setDummyQrCode(null);
+          return;
+        }
+        const profileUrl = `${window.location.origin}/document-access/${encodeURIComponent(displayUser.studentId)}/${encodeURIComponent(shareToken)}`;
         const dataUrl = await generateQrCode(profileUrl, { size: 300 });
         setDummyQrCode(dataUrl);
       } catch (err) {
@@ -84,15 +94,16 @@ export const StudentDashboard = () => {
       }
     };
     generate();
-  }, [displayUser.name, displayUser.studentId]);
+  }, [displayUser.name, displayUser.studentId, shareToken]);
 
   // Fetch public profile from backend and merge
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!user?.studentId) return;
+      const token = user?.share_token || user?.shareToken;
+      if (!user?.studentId || !token) return;
       setLoadingProfile(true);
       try {
-        const res = await authAPI.getPublicProfile(user.studentId, user.share_token || user.shareToken);
+        const res = await authAPI.getPublicProfile(user.studentId, token);
         // backend may return { success, profile } or the profile object directly
         const profileData = res?.profile || res?.data || res;
         setPublicProfile(profileData || null);
@@ -103,14 +114,14 @@ export const StudentDashboard = () => {
       }
     };
     fetchProfile();
-  }, [user?.studentId]);
+  }, [user?.studentId, user?.share_token, user?.shareToken]);
 
   // Fetch stored certificates from backend (Supabase)
   useEffect(() => {
     const fetchCertificates = async () => {
-      if (!user?.studentId) return;
+      if (!user?.studentId || !shareToken) return;
       try {
-        const res = await authAPI.getCertificates(user.studentId, user.share_token || user.shareToken);
+        const res = await authAPI.getCertificates(user.studentId, shareToken);
         const certs = res?.certificates || res?.data || [];
         setStoredCertificates(certs);
       } catch (err) {
@@ -118,7 +129,7 @@ export const StudentDashboard = () => {
       }
     };
     fetchCertificates();
-  }, [user?.studentId]);
+  }, [user?.studentId, shareToken]);
   const onDrop = (acceptedFiles) => {
     const files = acceptedFiles.map((file) => ({
       id: Math.random().toString(36).slice(2, 9),
@@ -234,7 +245,7 @@ export const StudentDashboard = () => {
       if (uploadResults.length > 0) {
         // Refresh stored certificates from backend so "My Documents" shows latest
         try {
-          const res = await authAPI.getCertificates(user.studentId);
+          const res = await authAPI.getCertificates(user.studentId, shareToken);
           const certs = res?.certificates || res?.data || [];
           setStoredCertificates(certs);
         } catch (err) {
@@ -714,12 +725,12 @@ export const StudentDashboard = () => {
                         <div
                           key={fileObj.id}
                           className={`flex items-center justify-between p-4 rounded-lg border-2 ${expectedStatus === 'verified'
-                              ? 'bg-green-50 border-green-200'
-                              : expectedStatus === 'semi-verified'
-                                ? 'bg-yellow-50 border-yellow-200'
-                                : expectedStatus === 'unable-to-verify'
-                                  ? 'bg-red-50 border-red-200'
-                                  : 'bg-gray-50 border-gray-200'
+                            ? 'bg-green-50 border-green-200'
+                            : expectedStatus === 'semi-verified'
+                              ? 'bg-yellow-50 border-yellow-200'
+                              : expectedStatus === 'unable-to-verify'
+                                ? 'bg-red-50 border-red-200'
+                                : 'bg-gray-50 border-gray-200'
                             }`}
                         >
                           <div className="flex items-center space-x-3 flex-1">
@@ -741,12 +752,12 @@ export const StudentDashboard = () => {
                                   {fileObj.name}
                                 </p>
                                 <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${expectedStatus === 'verified'
-                                    ? 'bg-green-100 text-green-800'
-                                    : expectedStatus === 'semi-verified'
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : expectedStatus === 'unable-to-verify'
-                                        ? 'bg-red-100 text-red-800'
-                                        : 'bg-gray-100 text-gray-800'
+                                  ? 'bg-green-100 text-green-800'
+                                  : expectedStatus === 'semi-verified'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : expectedStatus === 'unable-to-verify'
+                                      ? 'bg-red-100 text-red-800'
+                                      : 'bg-gray-100 text-gray-800'
                                   }`}>
                                   {expectedStatus === 'verified' && 'Will be Verified'}
                                   {expectedStatus === 'semi-verified' && 'Will be Semi-Verified'}
@@ -779,8 +790,8 @@ export const StudentDashboard = () => {
                     onClick={handleSubmitDocuments}
                     disabled={uploadedFiles.length === 0 || isUploading}
                     className={`w-full flex items-center justify-center space-x-2 px-6 py-3 rounded-lg font-medium transition-colors ${uploadedFiles.length > 0 && !isUploading
-                        ? 'bg-green-600 text-white hover:bg-green-700'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       }`}
                   >
                     <Send className="h-5 w-5" />
@@ -819,10 +830,10 @@ export const StudentDashboard = () => {
                     <div
                       key={doc.verificationId}
                       className={`p-4 rounded-lg border-2 ${doc.verificationStatus === 'verified'
-                          ? 'border-green-200 bg-green-50'
-                          : doc.verificationStatus === 'semi-verified'
-                            ? 'border-yellow-200 bg-yellow-50'
-                            : 'border-red-200 bg-red-50'
+                        ? 'border-green-200 bg-green-50'
+                        : doc.verificationStatus === 'semi-verified'
+                          ? 'border-yellow-200 bg-yellow-50'
+                          : 'border-red-200 bg-red-50'
                         }`}
                     >
                       <div className="flex items-start justify-between">
@@ -843,10 +854,10 @@ export const StudentDashboard = () => {
 
                           <div className="mb-3">
                             <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${doc.verificationStatus === 'verified'
-                                ? 'bg-green-100 text-green-800'
-                                : doc.verificationStatus === 'semi-verified'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-red-100 text-red-800'
+                              ? 'bg-green-100 text-green-800'
+                              : doc.verificationStatus === 'semi-verified'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-red-100 text-red-800'
                               }`}>
                               {doc.verificationStatus === 'verified' && 'Verified'}
                               {doc.verificationStatus === 'semi-verified' && 'Semi-Verified'}
@@ -1155,8 +1166,8 @@ export const StudentDashboard = () => {
                         <div
                           key={doc.id}
                           className={`p-3 rounded-lg border text-sm ${doc.isGenuine
-                              ? 'bg-green-50 border-green-200'
-                              : 'bg-red-50 border-red-200'
+                            ? 'bg-green-50 border-green-200'
+                            : 'bg-red-50 border-red-200'
                             }`}
                         >
                           <div className="flex items-start justify-between">
@@ -1193,8 +1204,8 @@ export const StudentDashboard = () => {
 
                           <div className="mt-2 flex items-center justify-between">
                             <span className={`text-xs px-2 py-1 rounded-full font-medium ${doc.isGenuine
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
                               }`}>
                               {doc.isGenuine ? 'Authentic' : 'Flagged'}
                             </span>
@@ -1255,8 +1266,8 @@ export const StudentDashboard = () => {
       {showQrModal && qrCodeDataUrl && (
         <div className={`fixed inset-0 z-50 ${isFullscreen ? 'bg-white' : 'bg-black bg-opacity-75 flex items-center justify-center p-4'}`}>
           <div className={`${isFullscreen
-              ? 'w-full h-full flex flex-col bg-white'
-              : 'bg-white rounded-xl shadow-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto'
+            ? 'w-full h-full flex flex-col bg-white'
+            : 'bg-white rounded-xl shadow-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto'
             } transition-all duration-300`}>
             <div className={`flex items-center justify-between ${isFullscreen ? 'p-6 border-b border-gray-200' : 'mb-6'}`}>
               <div className="flex items-center space-x-2">
@@ -1298,8 +1309,8 @@ export const StudentDashboard = () => {
                   src={qrCodeDataUrl}
                   alt="Student Verification QR Code"
                   className={`mx-auto ${isFullscreen
-                      ? 'w-80 h-80 sm:w-96 sm:h-96 md:w-[400px] md:h-[400px] lg:w-[500px] lg:h-[500px]'
-                      : 'w-64 h-64'
+                    ? 'w-80 h-80 sm:w-96 sm:h-96 md:w-[400px] md:h-[400px] lg:w-[500px] lg:h-[500px]'
+                    : 'w-64 h-64'
                     }`}
                 />
               </div>
