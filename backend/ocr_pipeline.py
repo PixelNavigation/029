@@ -62,7 +62,7 @@ def extract_certificate_data_with_gemini(file_path):
         12. Subject-wise Grades (extract all subjects with their individual grade/marks)
         13. For the subject names dont include subject codes or numbers - just the name (e.g., "Data Structures", "Operating Systems")
         14. CRITICAL: Keep each subject paired with the grade/marks shown on the same row/line. Do not swap grades between subjects.
-        15. If a grade is unclear for a subject, leave that grade empty instead of guessing.
+        15. Get the year of passing correctly, the year of issue and passinng are same, for most cases, but for clarity you can check the Examination field, ex: Examiniation: B.E (C.S.E.) I-Sem, Feb 2023, in this case the year of passing is 2023.
         
         Return the data in JSON format with these keys:
         {
