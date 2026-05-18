@@ -371,6 +371,201 @@ def verify_certificate_upload(file):
     return jsonify({"success": True, "result": verification_result}), 200
 
 
+def _parse_subject_grades(subject_grades):
+    if not subject_grades:
+        return []
+
+    if isinstance(subject_grades, list):
+        cleaned = []
+        for item in subject_grades:
+            if not isinstance(item, dict):
+                continue
+            subject_name = item.get("subject_name", "")
+            grade_value = item.get("grade") or item.get("marks") or ""
+            if subject_name or grade_value:
+                cleaned.append({
+                    "subject_name": subject_name,
+                    "grade": grade_value,
+                })
+        return cleaned
+
+    if isinstance(subject_grades, str):
+        cleaned = []
+        for part in subject_grades.split(";"):
+            part = part.strip()
+            if not part:
+                continue
+            if ":" in part:
+                subject_name, grade_value = part.split(":", 1)
+            else:
+                subject_name, grade_value = part, ""
+            cleaned.append({
+                "subject_name": subject_name.strip(),
+                "grade": grade_value.strip(),
+            })
+        return cleaned
+
+    return []
+
+
+def build_extracted_data_from_row(row_data):
+    if not isinstance(row_data, dict):
+        return normalize_extracted_data({})
+
+    data = {
+        "student_name": row_data.get("student_name", ""),
+        "student_id": row_data.get("student_id", ""),
+        "university_name": row_data.get("university_name", ""),
+        "course_name": row_data.get("course_name", ""),
+        "specialization": row_data.get("specialization", ""),
+        "semester": row_data.get("semester", ""),
+        "degree_type": row_data.get("degree_type", ""),
+        "cgpa": row_data.get("cgpa", ""),
+        "year_of_passing": row_data.get("year_of_passing", ""),
+        "issue_date": row_data.get("issue_date", ""),
+        "certificate_number": row_data.get("certificate_number", ""),
+        "issuing_authority": row_data.get("issuing_authority", ""),
+        "subject_grades": _parse_subject_grades(row_data.get("subject_grades")),
+        "hash_salt": row_data.get("hash_salt", ""),
+        "blockchain_hash": row_data.get("blockchain_hash", ""),
+        "file_name": row_data.get("file_name", ""),
+    }
+
+    return normalize_extracted_data(data)
+
+
+def verify_certificate_qr_payload(payload):
+    try:
+        supabase = get_supabase()
+        if not supabase:
+            return jsonify({"error": "Database not configured"}), 503
+
+        if not isinstance(payload, dict):
+            return jsonify({"error": "Invalid QR payload"}), 400
+
+        hash_value = payload.get("hash") or payload.get("blockchain_hash")
+        record_id = payload.get("record_id") or payload.get("id")
+        student_id = payload.get("student_id")
+
+        if not hash_value and not record_id and not student_id:
+            return jsonify({"error": "QR payload is missing identifiers"}), 400
+
+        query = supabase.table("official_records").select("*")
+        if record_id:
+            query = query.eq("id", record_id)
+        if hash_value:
+            query = query.eq("blockchain_hash", hash_value)
+        if student_id and not record_id and not hash_value:
+            query = query.eq("student_id", student_id)
+
+        result = query.limit(1).execute()
+        rows = result.data or []
+        if not rows:
+            return jsonify({
+                "success": True,
+                "result": {
+                    "extracted_data": {},
+                    "database_match": None,
+                    "match_percentage": 0,
+                    "verification_status": "not_found",
+                    "is_on_blockchain": False,
+                    "blockchain_hash": hash_value,
+                    "computed_hash": None,
+                    "hash_match": None,
+                    "mismatch_reasons": [],
+                    "template_match": False,
+                    "alert_sent": False,
+                    "matched_file": None,
+                    "discrepancy_details": None,
+                    "suggestion": None,
+                    "error_message": "Certificate not found in the registry.",
+                },
+            }), 200
+
+        row_data = rows[0]
+        extracted_data = build_extracted_data_from_row(row_data)
+
+        (
+            match_score,
+            subject_match_info,
+            grade_mismatch,
+            mismatch_reasons,
+        ) = calculate_match_percentage_db(extracted_data, row_data)
+
+        verification_result = {
+            "extracted_data": extracted_data,
+            "database_match": {
+                "student_id": row_data.get("student_id", ""),
+                "student_name": row_data.get("student_name", ""),
+                "university": row_data.get("university_name", ""),
+                "course": row_data.get("course_name", ""),
+                "degree_type": row_data.get("degree_type", ""),
+                "cgpa": row_data.get("cgpa", ""),
+                "year_of_passing": row_data.get("year_of_passing", ""),
+                "issuing_authority": row_data.get("issuing_authority", ""),
+            },
+            "match_percentage": match_score,
+            "verification_status": "unverified",
+            "is_on_blockchain": False,
+            "blockchain_hash": row_data.get("blockchain_hash"),
+            "computed_hash": None,
+            "hash_match": None,
+            "mismatch_reasons": mismatch_reasons,
+            "template_match": False,
+            "alert_sent": False,
+            "matched_file": "supabase",
+            "discrepancy_details": None,
+            "suggestion": None,
+            "subject_match_info": subject_match_info,
+            "grade_mismatch": grade_mismatch,
+        }
+
+        expected_hash = row_data.get("blockchain_hash")
+        if expected_hash:
+            hash_salt = row_data.get("hash_salt")
+            if hash_salt:
+                computed_hash = create_certificate_hash(extracted_data, hash_salt=hash_salt)
+                verification_result["computed_hash"] = computed_hash
+                verification_result["hash_match"] = computed_hash == expected_hash
+            else:
+                verification_result["hash_match"] = None
+
+            hash_for_chain = verification_result["computed_hash"] or expected_hash
+            verification_result["is_on_blockchain"] = verify_hash_on_blockchain(hash_for_chain)
+
+        if verification_result["hash_match"] is False:
+            verification_result["verification_status"] = "failed"
+            verification_result["discrepancy_details"] = (
+                "Hash mismatch between QR payload and the stored blockchain hash. "
+                "The certificate data appears altered."
+            )
+            verification_result["suggestion"] = (
+                "Please re-scan the QR code or contact the issuing institution for verification."
+            )
+        elif verification_result.get("grade_mismatch"):
+            verification_result["verification_status"] = "failed"
+            verification_result["discrepancy_details"] = (
+                "; ".join(verification_result.get("mismatch_reasons", [])[:3])
+                or "One or more subject grades do not match the official record."
+            )
+        else:
+            if verification_result["is_on_blockchain"]:
+                verification_result["verification_status"] = "verified"
+            elif match_score >= 80.0:
+                verification_result["verification_status"] = "verified"
+            elif match_score >= 60.0:
+                verification_result["verification_status"] = "semi-verified"
+            else:
+                verification_result["verification_status"] = "failed"
+
+        return jsonify({"success": True, "result": verification_result}), 200
+
+    except Exception as exc:
+        print(f"QR verification error: {str(exc)}")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": f"QR verification error: {str(exc)}"}), 500
+
+
 # --- ESSENTIAL HELPER FUNCTIONS ---
 
 def _name_tokens(value):

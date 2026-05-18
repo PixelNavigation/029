@@ -3,13 +3,34 @@ import { useNavigate } from 'react-router-dom';
 import { QrCode, Camera, Upload, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 
-export const QRVerification = () => {
+export const QRVerification = ({ apiUrl, onVerified }) => {
   const [verificationResult, setVerificationResult] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
   const [scanActive, setScanActive] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
+  const API_URL = apiUrl || import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  const submitQrPayload = async (payload) => {
+    const response = await fetch(`${API_URL}/api/verify-qr`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'QR verification failed.');
+    }
+
+    if (onVerified) {
+      onVerified(data.result);
+      return null;
+    }
+
+    return data.result;
+  };
 
   const handleQrPayload = async (payload) => {
     if (!payload) return;
@@ -18,6 +39,39 @@ export const QRVerification = () => {
     setScanActive(false);
 
     try {
+      let parsedPayload = null;
+      try {
+        parsedPayload = JSON.parse(payload);
+      } catch (err) {
+        parsedPayload = null;
+      }
+
+      if (parsedPayload && typeof parsedPayload === 'object') {
+        const hashValue = parsedPayload.hash || parsedPayload.blockchain_hash;
+        const recordId = parsedPayload.record_id || parsedPayload.id;
+        const studentId = parsedPayload.student_id;
+        if (hashValue || recordId || studentId) {
+          const result = await submitQrPayload({
+            hash: hashValue,
+            record_id: recordId,
+            student_id: studentId
+          });
+          if (result) {
+            setVerificationResult({
+              isValid: result.verification_status === 'verified',
+              message: result.message,
+              studentName: result.extracted_data?.student_name,
+              university: result.extracted_data?.university_name,
+              course: result.extracted_data?.course_name,
+              year: result.extracted_data?.year_of_passing,
+              certificateId: recordId || result.database_match?.student_id || 'N/A',
+              verifiedAt: new Date().toISOString()
+            });
+          }
+          return;
+        }
+      }
+
       let url;
       try {
         url = new URL(payload);
@@ -32,6 +86,32 @@ export const QRVerification = () => {
           window.location.assign(url.toString());
         }
         return;
+      }
+
+      if (url) {
+        const hashValue = url.searchParams.get('hash');
+        const recordId = url.searchParams.get('record_id');
+        const studentId = url.searchParams.get('student_id');
+        if (hashValue || recordId || studentId) {
+          const result = await submitQrPayload({
+            hash: hashValue,
+            record_id: recordId,
+            student_id: studentId
+          });
+          if (result) {
+            setVerificationResult({
+              isValid: result.verification_status === 'verified',
+              message: result.message,
+              studentName: result.extracted_data?.student_name,
+              university: result.extracted_data?.university_name,
+              course: result.extracted_data?.course_name,
+              year: result.extracted_data?.year_of_passing,
+              certificateId: recordId || result.database_match?.student_id || 'N/A',
+              verifiedAt: new Date().toISOString()
+            });
+          }
+          return;
+        }
       }
 
       setVerificationResult({

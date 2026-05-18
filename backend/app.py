@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 from pathlib import Path
 from verify_handler import (
     verify_certificate_upload as verify_certificate_upload_handler,
+    verify_certificate_qr_payload,
 )
 from ocr_pipeline import process_certificate_file, normalize_extracted_data, create_certificate_hash
 
@@ -761,6 +762,12 @@ def verify_certificate_upload():
         return jsonify({"error": "File type not allowed"}), 400
 
     return verify_certificate_upload_handler(file)
+
+
+@app.route("/api/verify-qr", methods=["POST"])
+def verify_certificate_qr():
+    payload = request.get_json(silent=True) or {}
+    return verify_certificate_qr_payload(payload)
 
 
 if __name__ == "__main__":
