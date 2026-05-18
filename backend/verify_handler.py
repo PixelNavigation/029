@@ -412,10 +412,13 @@ def build_extracted_data_from_row(row_data):
     if not isinstance(row_data, dict):
         return normalize_extracted_data({})
 
+    issuing_authority = row_data.get("issuing_authority", "")
+    university_name = row_data.get("university_name", "") or issuing_authority
+
     data = {
         "student_name": row_data.get("student_name", ""),
         "student_id": row_data.get("student_id", ""),
-        "university_name": row_data.get("university_name", ""),
+        "university_name": university_name,
         "course_name": row_data.get("course_name", ""),
         "specialization": row_data.get("specialization", ""),
         "semester": row_data.get("semester", ""),
@@ -424,7 +427,7 @@ def build_extracted_data_from_row(row_data):
         "year_of_passing": row_data.get("year_of_passing", ""),
         "issue_date": row_data.get("issue_date", ""),
         "certificate_number": row_data.get("certificate_number", ""),
-        "issuing_authority": row_data.get("issuing_authority", ""),
+        "issuing_authority": issuing_authority,
         "subject_grades": _parse_subject_grades(row_data.get("subject_grades")),
         "hash_salt": row_data.get("hash_salt", ""),
         "blockchain_hash": row_data.get("blockchain_hash", ""),
